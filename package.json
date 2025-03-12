@@ -1,0 +1,37 @@
+{
+  "name": "copperxbot",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "nodemon --exec ts-node src/index.ts",
+    "build": "tsc",
+    "clean-start": "pkill -f 'node.*copperXBot' || true && npm run build && npm run start",
+    "start-prod": "./scripts/start-bot.sh",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["telegram", "bot", "copperx", "crypto", "payments"],
+  "author": "",
+  "license": "ISC",
+  "description": "Telegram bot for Copperx Payout API integration",
+  "dependencies": {
+    "@types/node": "^22.13.10",
+    "axios": "^1.8.3",
+    "dotenv": "^16.4.7",
+    "nodemon": "^3.1.9",
+    "pusher-js": "^8.4.0",
+    "telegraf": "^4.16.3",
+    "ts-node": "^10.9.2"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.26.1",
+    "@typescript-eslint/parser": "^8.26.1",
+    "eslint": "^9.22.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-prettier": "^5.2.3",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  }
+} 
