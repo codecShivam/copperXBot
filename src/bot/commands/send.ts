@@ -97,8 +97,9 @@ const sendFlow = Composer.on(message('text'), async (ctx, next) => {
     
     // Fetch networks for the next step
     try {
-      const balancesResponse = await walletApi.getBalances(session.token as string);
-      const balances = balancesResponse.data;
+      // walletApi.getBalances now returns the array directly
+      const balances = await walletApi.getBalances(session.token as string);
+      console.log(`[SEND] Fetched ${balances.length} wallets with balances`);
       
       if (!balances || balances.length === 0) {
         await ctx.reply(
@@ -119,7 +120,7 @@ const sendFlow = Composer.on(message('text'), async (ctx, next) => {
       let message = '🌐 *Select Network*\n\nPlease enter the number of the network you want to use:\n\n';
       
       networks.forEach((network, index) => {
-        message += `${index + 1}. ${network.toUpperCase()}\n`;
+        message += `${index + 1}. ${String(network).toUpperCase()}\n`;
       });
       
       await ctx.reply(message, {
@@ -152,8 +153,9 @@ const sendFlow = Composer.on(message('text'), async (ctx, next) => {
     
     // Fetch networks for the next step
     try {
-      const balancesResponse = await walletApi.getBalances(session.token as string);
-      const balances = balancesResponse.data;
+      // walletApi.getBalances now returns the array directly
+      const balances = await walletApi.getBalances(session.token as string);
+      console.log(`[SEND] Fetched ${balances.length} wallets with balances`);
       
       if (!balances || balances.length === 0) {
         await ctx.reply(
@@ -174,7 +176,7 @@ const sendFlow = Composer.on(message('text'), async (ctx, next) => {
       let message = '🌐 *Select Network*\n\nPlease enter the number of the network you want to use:\n\n';
       
       networks.forEach((network, index) => {
-        message += `${index + 1}. ${network.toUpperCase()}\n`;
+        message += `${index + 1}. ${String(network).toUpperCase()}\n`;
       });
       
       await ctx.reply(message, {
@@ -212,20 +214,44 @@ const sendFlow = Composer.on(message('text'), async (ctx, next) => {
     
     // Fetch tokens for the selected network
     try {
-      const balancesResponse = await walletApi.getBalances(session.token as string);
-      const balances = balancesResponse.data.filter(
-        (balance) => balance.network === selectedNetwork,
-      );
+      // walletApi.getBalances now returns the array directly
+      const walletData = await walletApi.getBalances(session.token as string);
+      console.log(`[SEND] Fetched ${walletData.length} wallets with balances for token selection`);
+      
+      // Filter wallets by network and extract tokens
+      const networkWallets = walletData.filter(wallet => wallet.network === selectedNetwork);
+      
+      // Extract all tokens from these wallets
+      const tokenList: { symbol: string, balance: string, decimals: number, address: string }[] = [];
+      
+      networkWallets.forEach(wallet => {
+        if (wallet.balances && Array.isArray(wallet.balances)) {
+          wallet.balances.forEach(tokenBalance => {
+            // Check if token already exists in our list (from another wallet)
+            const existingToken = tokenList.find(t => t.symbol === tokenBalance.symbol);
+            
+            if (existingToken) {
+              // Add balances for existing token
+              const existingBalance = parseFloat(existingToken.balance) || 0;
+              const newBalance = parseFloat(tokenBalance.balance) || 0;
+              existingToken.balance = (existingBalance + newBalance).toString();
+            } else {
+              // Add new token to the list
+              tokenList.push(tokenBalance);
+            }
+          });
+        }
+      });
       
       // Store tokens in session
-      setTempData(ctx, 'tokens', balances.map((balance) => balance.token));
+      setTempData(ctx, 'tokens', tokenList.map(token => token.symbol));
       
       // Ask for token
       let message = '💰 *Select Token*\n\nPlease enter the number of the token you want to send:\n\n';
       
-      balances.forEach((balance, index) => {
-        const formattedBalance = formatAmount(balance.balance);
-        message += `${index + 1}. ${balance.token} (Balance: ${formattedBalance})\n`;
+      tokenList.forEach((token, index) => {
+        const formattedBalance = formatAmount(token.balance);
+        message += `${index + 1}. ${token.symbol} (Balance: ${formattedBalance})\n`;
       });
       
       await ctx.reply(message, {
@@ -324,7 +350,7 @@ const sendFlow = Composer.on(message('text'), async (ctx, next) => {
       message += `*Recipient:* ${recipient}\n`;
     }
     
-    message += `*Network:* ${network.toUpperCase()}\n`;
+    message += `*Network:* ${String(network).toUpperCase()}\n`;
     message += `*Token:* ${token}\n`;
     message += `*Amount:* ${amount}\n`;
     

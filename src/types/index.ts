@@ -62,10 +62,15 @@ export interface User {
 // Wallet types
 export interface Wallet {
   id: string;
-  address: string;
+  address?: string;
+  walletAddress: string;
   network: string;
   isDefault: boolean;
-  tokens: Token[];
+  tokens?: Token[];
+  walletType?: string;
+  organizationId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Token {
@@ -78,7 +83,24 @@ export interface Balance {
   token: string;
   network: string;
   balance: string;
-  formattedBalance: string;
+  formattedBalance?: string;
+  walletId?: string;
+  isDefaultWallet?: boolean;
+  address?: string;
+  decimals?: number;
+}
+
+// API response for wallet balances
+export interface WalletWithBalances {
+  walletId: string;
+  isDefault: boolean;
+  network: string;
+  balances: {
+    decimals: number;
+    balance: string;
+    symbol: string;
+    address: string;
+  }[];
 }
 
 // Transfer types

@@ -10,7 +10,7 @@ import profileCommand from './bot/commands/profile';
 import historyCommand from './bot/commands/history';
 import sendCommand from './bot/commands/send';
 import withdrawCommand from './bot/commands/withdraw';
-import { mainMenuKeyboard } from './bot/keyboards';
+import { mainMenuKeyboard, balanceMenuKeyboard } from './bot/keyboards';
 import { checkRunningBot, registerBotProcess, setupGracefulShutdown } from './utils/lifecycle';
 import { setGlobalBot } from './services/notifications';
 
@@ -62,6 +62,11 @@ bot.action('main_menu', async (ctx) => {
     },
   });
   await ctx.reply('Please select an option:', mainMenuKeyboard());
+});
+
+// Catch-all handler for noop actions (used in pagination)
+bot.action('noop', async (ctx) => {
+  await ctx.answerCbQuery();
 });
 
 // Handle help action
