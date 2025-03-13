@@ -6,6 +6,7 @@ import { authMiddleware } from '../middleware/auth';
 import { backButtonKeyboard, confirmationKeyboard } from '../keyboards';
 import { getSession, setTempData, getTempData, clearTempData } from '../../utils/session';
 import { formatAmount } from '../../utils/format';
+import { formatNetworkForDisplay } from '../../utils/networks';
 
 // Withdraw command handler
 const withdrawCommand = Composer.command('withdraw', authMiddleware(), async (ctx) => {
@@ -60,7 +61,7 @@ async function startWithdrawal(ctx) {
     let message = '🌐 *Select Network*\n\nPlease enter the number of the network you want to use:\n\n';
     
     networks.forEach((network, index) => {
-      message += `${index + 1}. ${String(network).toUpperCase()}\n`;
+      message += `${index + 1}. ${formatNetworkForDisplay(network)}\n`;
     });
     
     await ctx.reply(message, {
@@ -175,13 +176,17 @@ const withdrawFlow = Composer.on(message('text'), async (ctx, next) => {
     }
     
     const selectedToken = tokens[tokenIndex];
+    const selectedNetwork = getTempData(ctx, 'network') as string;
+    
+    // Log with network name for debugging
+    console.log(`[WITHDRAW] Selected token ${selectedToken} on ${formatNetworkForDisplay(selectedNetwork)}`);
     
     // Store selected token
     setTempData(ctx, 'token', selectedToken);
     
     // Ask for amount
     await ctx.reply(
-      '💲 *Enter Amount*\n\nPlease enter the amount you want to withdraw:',
+      `💲 *Enter Amount*\n\nPlease enter the amount of ${selectedToken} you want to withdraw from ${formatNetworkForDisplay(selectedNetwork)}:`,
       {
         parse_mode: 'Markdown',
       },
@@ -235,7 +240,7 @@ const withdrawFlow = Composer.on(message('text'), async (ctx, next) => {
     let message = '✅ *Confirm Withdrawal*\n\n';
     
     message += `*Type:* Bank Withdrawal\n`;
-    message += `*Network:* ${String(networkValue).toUpperCase()}\n`;
+    message += `*Network:* ${formatNetworkForDisplay(networkValue)}\n`;
     message += `*Token:* ${tokenValue}\n`;
     message += `*Amount:* ${withdrawAmount}\n`;
     message += `*Bank Account:* Default Account\n\n`;

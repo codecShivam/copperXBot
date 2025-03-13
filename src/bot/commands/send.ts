@@ -6,6 +6,7 @@ import { authMiddleware } from '../middleware/auth';
 import { sendMenuKeyboard, backButtonKeyboard, confirmationKeyboard } from '../keyboards';
 import { getSession, clearTempData, setTempData, getTempData } from '../../utils/session';
 import { formatAmount } from '../../utils/format';
+import { formatNetworkForDisplay } from '../../utils/networks';
 
 // Send command handler
 const sendCommand = Composer.command('send', authMiddleware(), async (ctx) => {
@@ -120,7 +121,7 @@ const sendFlow = Composer.on(message('text'), async (ctx, next) => {
       let message = '🌐 *Select Network*\n\nPlease enter the number of the network you want to use:\n\n';
       
       networks.forEach((network, index) => {
-        message += `${index + 1}. ${String(network).toUpperCase()}\n`;
+        message += `${index + 1}. ${formatNetworkForDisplay(network)}\n`;
       });
       
       await ctx.reply(message, {
@@ -176,7 +177,7 @@ const sendFlow = Composer.on(message('text'), async (ctx, next) => {
       let message = '🌐 *Select Network*\n\nPlease enter the number of the network you want to use:\n\n';
       
       networks.forEach((network, index) => {
-        message += `${index + 1}. ${String(network).toUpperCase()}\n`;
+        message += `${index + 1}. ${formatNetworkForDisplay(network)}\n`;
       });
       
       await ctx.reply(message, {
@@ -283,13 +284,17 @@ const sendFlow = Composer.on(message('text'), async (ctx, next) => {
     }
     
     const selectedToken = tokens[tokenIndex];
+    const selectedNetwork = getTempData(ctx, 'network') as string;
+    
+    // Log with network name for debugging
+    console.log(`[SEND] Selected token ${selectedToken} on ${formatNetworkForDisplay(selectedNetwork)}`);
     
     // Store selected token
     setTempData(ctx, 'token', selectedToken);
     
     // Ask for amount
     await ctx.reply(
-      '💲 *Enter Amount*\n\nPlease enter the amount you want to send:',
+      `💲 *Enter Amount*\n\nPlease enter the amount of ${selectedToken} you want to send from ${formatNetworkForDisplay(selectedNetwork)}:`,
       {
         parse_mode: 'Markdown',
       },
@@ -350,7 +355,7 @@ const sendFlow = Composer.on(message('text'), async (ctx, next) => {
       message += `*Recipient:* ${recipient}\n`;
     }
     
-    message += `*Network:* ${String(network).toUpperCase()}\n`;
+    message += `*Network:* ${formatNetworkForDisplay(network)}\n`;
     message += `*Token:* ${token}\n`;
     message += `*Amount:* ${amount}\n`;
     

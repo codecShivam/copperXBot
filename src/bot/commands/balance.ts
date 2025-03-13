@@ -13,6 +13,7 @@ import {
 import { formatAmount } from '../../utils/format';
 import { getSession } from '../../utils/session';
 import { Balance, Wallet, WalletWithBalances } from '../../types';
+import { formatNetworkForDisplay, getNetworkName } from '../../utils/networks';
 
 // Cache for balances to avoid frequent API calls
 const balanceCache = new Map<string, {
@@ -135,7 +136,7 @@ async function showNetworkSelectionForWalletGeneration(ctx) {
     // Create network selection buttons
     const buttons = supportedNetworks.map(network => [
       Markup.button.callback(
-        network.name.toUpperCase(),
+        network.name,
         `generate_wallet_${network.id}_${network.name}`
       )
     ]);
@@ -309,7 +310,8 @@ async function fetchAndDisplayBalances(ctx, isRefresh = false) {
     let message = '💰 *Your Wallet Balances*\n\n';
     
     Object.entries(balancesByNetwork).forEach(([network, networkBalances]) => {
-      message += `*${network.toUpperCase()}*\n`;
+      // Display user-friendly network name
+      message += `*${formatNetworkForDisplay(network)}*\n`;
       
       networkBalances.forEach((balance) => {
         const formattedBalance = formatAmount(balance.balance);
@@ -379,7 +381,7 @@ async function showNetworkBalances(ctx, network: string) {
     
     if (networkBalances.length === 0) {
       await ctx.reply(
-        `💰 *No balances found for ${network.toUpperCase()}*\n\nYou don't have any tokens on this network.`,
+        `💰 *No balances found for ${formatNetworkForDisplay(network)}*\n\nYou don't have any tokens on this network.`,
         {
           parse_mode: 'Markdown',
         },
@@ -390,7 +392,7 @@ async function showNetworkBalances(ctx, network: string) {
     
     // Show the balances with token selection
     await ctx.reply(
-      `💰 *${network.toUpperCase()} Balances*\n\nSelect a token for more details:`,
+      `💰 *${formatNetworkForDisplay(network)} Balances*\n\nSelect a token for more details:`,
       {
         parse_mode: 'Markdown',
         ...networkTokensKeyboard(networkBalances, network)
@@ -415,7 +417,7 @@ async function showTokenDetails(ctx, network: string, token: string) {
     
     if (!tokenBalance) {
       await ctx.reply(
-        `❌ Token details not found for ${token} on ${network.toUpperCase()}.`,
+        `❌ Token details not found for ${token} on ${formatNetworkForDisplay(network)}.`,
         {
           parse_mode: 'Markdown',
         },
@@ -426,10 +428,10 @@ async function showTokenDetails(ctx, network: string, token: string) {
     
     const formattedBalance = formatAmount(tokenBalance.balance);
     
-    let message = `💰 *${token} Details on ${network.toUpperCase()}*\n\n`;
+    let message = `💰 *${token} Details on ${formatNetworkForDisplay(network)}*\n\n`;
     message += `Balance: ${formattedBalance}\n`;
     message += `Token: ${token}\n`;
-    message += `Network: ${network.toUpperCase()}\n`;
+    message += `Network: ${formatNetworkForDisplay(network)}\n`;
     
     // Include wallet address if available in the API response
     if ('walletAddress' in tokenBalance) {
@@ -449,7 +451,7 @@ async function showTokenDetails(ctx, network: string, token: string) {
     const actionButtons = Markup.inlineKeyboard([
       [Markup.button.callback('💸 Send', `send_init_${network}_${token}`)],
       [Markup.button.callback('🏦 Withdraw', `withdraw_init_${network}_${token}`)],
-      [Markup.button.callback('⬅️ Back to Network', `balance_network_${network}`)],
+      [Markup.button.callback(`⬅️ Back to ${formatNetworkForDisplay(network)}`, `balance_network_${network}`)],
     ]);
     
     await ctx.reply('Actions for this token:', actionButtons);
@@ -458,7 +460,7 @@ async function showTokenDetails(ctx, network: string, token: string) {
     await ctx.reply(
       `❌ Failed to fetch token details: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
     );
-    await ctx.reply('Return to network balances:', backButtonKeyboard(`balance_network_${network}`));
+    await ctx.reply(`Return to ${formatNetworkForDisplay(network)} balances:`, backButtonKeyboard(`balance_network_${network}`));
   }
 }
 
@@ -490,7 +492,7 @@ async function showWalletDetails(ctx) {
     let message = '💼 *Your Wallets*\n\n';
     
     wallets.forEach((wallet) => {
-      message += `*${wallet.network.toUpperCase()}*${wallet.isDefault ? ' (Default)' : ''}\n`;
+      message += `*${formatNetworkForDisplay(wallet.network)}*${wallet.isDefault ? ' (Default)' : ''}\n`;
       message += `Address: \`${wallet.walletAddress || wallet.address || 'Not available'}\`\n\n`;
     });
     
@@ -535,7 +537,7 @@ async function showWalletAddresses(ctx) {
     // Loop through each wallet and send as separate messages for easier copying
     for (const wallet of wallets) {
       await ctx.reply(
-        `*${wallet.network.toUpperCase()}*${wallet.isDefault ? ' (Default)' : ''}\n` +
+        `*${formatNetworkForDisplay(wallet.network)}*${wallet.isDefault ? ' (Default)' : ''}\n` +
         `Address: \`${wallet.walletAddress || wallet.address || 'Not available'}\``,
         {
           parse_mode: 'Markdown',
@@ -653,7 +655,7 @@ async function generateNewWallet(ctx, networkId: string, networkName: string) {
     console.log(`[BALANCE] Wallet created with address: ${wallet.walletAddress || wallet.address || 'undefined'}`);
     
     let message = `✅ *New ${networkName} Wallet Created*\n\n`;
-    message += `Network: ${networkName.toUpperCase()}\n`;
+    message += `Network: ${networkName}\n`;
     
     // Handle different wallet address property formats
     if (wallet.walletAddress) {
