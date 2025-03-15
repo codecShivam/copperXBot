@@ -54,8 +54,6 @@ async function showBalanceMenu(ctx) {
   await ctx.reply(
     formatHeader('Wallet & Balance Management') + '\n\n' +
     'What would you like to do?',
-    formatHeader('Wallet & Balance Management') + '\n\n' +
-    'What would you like to do?',
     {
       parse_mode: 'Markdown',
       ...balanceMenuKeyboard()
@@ -303,10 +301,6 @@ async function fetchAndDisplayBalances(ctx, isRefresh = false) {
         formatLoading('Fetching your wallet balances...'),
         { parse_mode: 'Markdown' }
       );
-      await ctx.reply(
-        formatLoading('Fetching your wallet balances...'),
-        { parse_mode: 'Markdown' }
-      );
     }
     
     const { balances, balancesByNetwork } = await getCachedBalances(ctx);
@@ -315,12 +309,6 @@ async function fetchAndDisplayBalances(ctx, isRefresh = false) {
       await ctx.reply(
         formatWarning('No balances found') + '\n\nYou don\'t have any tokens in your wallets yet.',
         { parse_mode: 'Markdown' }
-        formatWarning('No balances found') + '\n\nYou don\'t have any tokens in your wallets yet.',
-        { parse_mode: 'Markdown' }
-      );
-      await ctx.reply(
-        `${ICON.back} Return to balance menu:`, 
-        backButtonKeyboard('balance')
       );
       await ctx.reply(
         `${ICON.back} Return to balance menu:`, 
@@ -342,20 +330,13 @@ async function fetchAndDisplayBalances(ctx, isRefresh = false) {
       networkBalances.forEach((balance) => {
         const formattedBalance = formatAmount(balance.balance);
         message += `${SECTION.item}${balance.token}: ${formattedBalance}\n`;
-        message += `${SECTION.item}${balance.token}: ${formattedBalance}\n`;
       });
       
-      message += DIVIDERS.small;
       message += DIVIDERS.small;
     });
     
     await ctx.reply(message, { parse_mode: 'Markdown' });
-    await ctx.reply(message, { parse_mode: 'Markdown' });
     
-    await ctx.reply(
-      `${ICON.back} Return to balance menu:`, 
-      backButtonKeyboard('balance')
-    );
     await ctx.reply(
       `${ICON.back} Return to balance menu:`, 
       backButtonKeyboard('balance')
@@ -366,13 +347,6 @@ async function fetchAndDisplayBalances(ctx, isRefresh = false) {
       formatError('Failed to fetch balances') + 
       `\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
       { parse_mode: 'Markdown' }
-      formatError('Failed to fetch balances') + 
-      `\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
-      { parse_mode: 'Markdown' }
-    );
-    await ctx.reply(
-      `${ICON.back} Return to balance menu:`, 
-      backButtonKeyboard('balance')
     );
     await ctx.reply(
       `${ICON.back} Return to balance menu:`, 
@@ -511,14 +485,8 @@ async function showTokenDetails(ctx, network: string, token: string) {
 }
 
 // Display detailed information about a wallet
-// Display detailed information about a wallet
 async function showWalletDetails(ctx) {
   try {
-    await ctx.reply(
-      formatLoading('Fetching wallet details...'),
-      { parse_mode: 'Markdown' }
-    );
-
     await ctx.reply(
       formatLoading('Fetching wallet details...'),
       { parse_mode: 'Markdown' }
@@ -528,17 +496,10 @@ async function showWalletDetails(ctx) {
     const token = session.token as string;
     const wallets = await walletApi.getWallets(token);
 
-
     if (!wallets || wallets.length === 0) {
       await ctx.reply(
         formatWarning('No wallets found') + '\n\nYou don\'t have any wallets configured yet.',
         { parse_mode: 'Markdown' }
-        formatWarning('No wallets found') + '\n\nYou don\'t have any wallets configured yet.',
-        { parse_mode: 'Markdown' }
-      );
-      await ctx.reply(
-        `${ICON.back} Return to balance menu:`, 
-        backButtonKeyboard('balance')
       );
       await ctx.reply(
         `${ICON.back} Return to balance menu:`, 
@@ -546,8 +507,6 @@ async function showWalletDetails(ctx) {
       );
       return;
     }
-
-    let message = formatHeader('Your Wallets') + DIVIDERS.medium;
 
     let message = formatHeader('Your Wallets') + DIVIDERS.medium;
     
@@ -569,7 +528,6 @@ async function showWalletDetails(ctx) {
     await ctx.reply(formatSubheader('Return to Balance Menu'), {
       parse_mode: 'Markdown',
       reply_markup: options
-      reply_markup: options
     });
   } catch (error) {
     console.error('Error fetching wallet details:', error);
@@ -577,14 +535,6 @@ async function showWalletDetails(ctx) {
       formatError('Failed to fetch wallet details') + 
       `\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
       { parse_mode: 'Markdown' }
-      formatError('Failed to fetch wallet details') + 
-      `\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
-      { parse_mode: 'Markdown' }
-    );
-    
-    await ctx.reply(
-      `${ICON.back} Return to balance menu:`, 
-      backButtonKeyboard('balance')
     );
     
     await ctx.reply(
@@ -595,14 +545,8 @@ async function showWalletDetails(ctx) {
 }
 
 // Show all wallet addresses
-// Show all wallet addresses
 async function showWalletAddresses(ctx) {
   try {
-    await ctx.reply(
-      formatLoading('Fetching your wallet addresses...'),
-      { parse_mode: 'Markdown' }
-    );
-
     await ctx.reply(
       formatLoading('Fetching your wallet addresses...'),
       { parse_mode: 'Markdown' }
@@ -611,7 +555,6 @@ async function showWalletAddresses(ctx) {
     const session = getSession(ctx);
     const token = session.token as string;
     const wallets = await walletApi.getWallets(token);
-
 
     if (!wallets || wallets.length === 0) {
       await ctx.reply(
@@ -675,14 +618,6 @@ async function showWalletAddresses(ctx) {
       formatError('Failed to fetch wallet addresses') + 
       `\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
       { parse_mode: 'Markdown' }
-      formatError('Failed to fetch wallet addresses') + 
-      `\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
-      { parse_mode: 'Markdown' }
-    );
-    
-    await ctx.reply(
-      `${ICON.back} Return to balance menu:`, 
-      backButtonKeyboard('balance')
     );
     
     await ctx.reply(
@@ -761,14 +696,8 @@ async function setDefaultWalletHandler(ctx, walletId: string) {
 }
 
 // Generate a new wallet
-// Generate a new wallet
 async function generateNewWallet(ctx, networkId: string, networkName: string) {
   try {
-    await ctx.reply(
-      formatLoading(`Generating a new wallet on ${formatNetworkForDisplay(networkName)}...`),
-      { parse_mode: 'Markdown' }
-    );
-
     await ctx.reply(
       formatLoading(`Generating a new wallet on ${formatNetworkForDisplay(networkName)}...`),
       { parse_mode: 'Markdown' }
@@ -780,12 +709,7 @@ async function generateNewWallet(ctx, networkId: string, networkName: string) {
 
     const response = await walletApi.generateWallet(token, networkId);
     const wallet = response;
-
-    const response = await walletApi.generateWallet(token, networkId);
-    const wallet = response;
     
-    console.log('Generated wallet data:', wallet);
-
     console.log('Generated wallet data:', wallet);
 
     // Clear cache to ensure fresh data on next balance check
@@ -800,13 +724,6 @@ async function generateNewWallet(ctx, networkId: string, networkName: string) {
 
     await ctx.reply(message, { 
       parse_mode: 'Markdown'
-
-    let message = formatSuccess('Wallet generated successfully!') + DIVIDERS.medium;
-    message += `${ICON.wallet} Network: ${formatNetworkIcon(networkName)} *${formatNetworkForDisplay(networkName)}*\n`;
-    message += `${ICON.address} Address: \`${wallet.walletAddress}\`\n\n`;
-
-    await ctx.reply(message, { 
-      parse_mode: 'Markdown'
     });
 
     await ctx.reply(
@@ -814,13 +731,6 @@ async function generateNewWallet(ctx, networkId: string, networkName: string) {
       backButtonKeyboard('wallet_settings')
     );
   } catch (error) {
-    console.error('Wallet generation error:', error);
-    await ctx.reply(
-      formatError('Failed to generate wallet') + 
-      `\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
-      { parse_mode: 'Markdown' }
-    );
-    
     console.error('Wallet generation error:', error);
     await ctx.reply(
       formatError('Failed to generate wallet') + 
