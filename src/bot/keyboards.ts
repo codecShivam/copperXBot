@@ -1,7 +1,8 @@
 import { Markup } from 'telegraf';
 import { Wallet } from '../types';
 import { formatNetworkForDisplay } from '../utils/networks';
-import { ICON } from '../utils/theme';
+import { ICON } from '../constants';
+import { formatNetworkIcon as getNetworkIcon } from '../constants';
 
 // Main menu keyboard
 export const mainMenuKeyboard = () => {
@@ -76,7 +77,7 @@ export const paginatedNetworksKeyboard = (networks: string[], page = 0) => {
   
   const buttons = paginatedNetworks.map(network => {
     const networkName = formatNetworkForDisplay(network);
-    const networkIcon = getNetworkIcon(network);
+    const networkIcon = getNetworkIcon(networkName);
     
     return [
       Markup.button.callback(
@@ -132,7 +133,7 @@ export const networkTokensKeyboard = (networkBalances, network: string) => {
 export const walletsKeyboard = (wallets: Wallet[], action: string) => {
   const buttons = wallets.map(wallet => {
     const networkName = formatNetworkForDisplay(wallet.network);
-    const networkIcon = getNetworkIcon(wallet.network);
+    const networkIcon = getNetworkIcon(networkName);
     const defaultMark = wallet.isDefault ? ' ★' : '';
     
     return [
@@ -150,15 +151,15 @@ export const walletsKeyboard = (wallets: Wallet[], action: string) => {
 };
 
 // Helper function to get network-specific icons
-function getNetworkIcon(network: string): string {
-  const networkLower = network.toLowerCase();
+// function getNetworkIcon(network: string): string {
+//   const networkLower = network.toLowerCase();
   
-  if (networkLower.includes('ethereum')) return ICON.ethereum;
-  if (networkLower.includes('polygon')) return ICON.polygon;
-  if (networkLower.includes('arbitrum')) return ICON.arbitrum;
-  if (networkLower.includes('optimism')) return ICON.optimism;
-  if (networkLower.includes('base')) return ICON.base;
-  if (networkLower.includes('bnb')) return ICON.bnb;
+//   if (networkLower.includes('ethereum')) return ICON.ethereum;
+//   if (networkLower.includes('polygon')) return ICON.polygon;
+//   if (networkLower.includes('arbitrum')) return ICON.arbitrum;
+//   if (networkLower.includes('optimism')) return ICON.optimism;
+//   if (networkLower.includes('base')) return ICON.base;
+//   if (networkLower.includes('bnb')) return ICON.bnb;
   
-  return ICON.network; // Default network icon
-} 
+//   return ICON.network; // Default network icon
+// } 

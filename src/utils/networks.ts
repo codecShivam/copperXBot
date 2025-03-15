@@ -1,68 +1,22 @@
-// Network mapping utility functions
+// Network utilities for the CopperX bot
+// This file acts as a compatibility layer for existing code
 
-// Map of network IDs to user-friendly names
-export const NETWORKS = {
-  '1': 'Ethereum',
-  '10': 'Optimism',
-  '56': 'BNB Chain',
-  '137': 'Polygon',
-  '8453': 'Base',
-  '42161': 'Arbitrum'
-};
+import {
+  formatNetworkForDisplay as formatNetwork,
+  getNetworkId as getNetworkIdFromConstants,
+  getSupportedNetworks as getSupportedNetworksFromConstants,
+  NETWORK_NAMES as NETWORK_NAMES_CONSTANTS,
+  NETWORK_IDS as NETWORK_IDS_CONSTANTS
+} from '../constants';
 
-// Map of network names to their IDs
-export const NETWORK_IDS = {
-  'ethereum': '1',
-  'optimism': '10',
-  'bnb': '56',
-  'polygon': '137',
-  'base': '8453',
-  'arbitrum': '42161'
-};
+// Re-export for backward compatibility
+export const formatNetworkForDisplay = formatNetwork;
+export const getNetworkId = getNetworkIdFromConstants;
+export const getSupportedNetworks = getSupportedNetworksFromConstants;
+export const NETWORK_NAMES = NETWORK_NAMES_CONSTANTS;
+export const NETWORK_IDS = NETWORK_IDS_CONSTANTS;
 
-/**
- * Get a user-friendly network name from its ID
- * @param networkId The network ID
- * @returns User-friendly network name or the ID if not found
- */
+// Legacy function if needed
 export const getNetworkName = (networkId: string): string => {
-  return NETWORKS[networkId] || networkId.toUpperCase();
-};
-
-/**
- * Get a network ID from its name
- * @param networkName The network name
- * @returns Network ID or the name if not found
- */
-export const getNetworkId = (networkName: string): string => {
-  const normalizedName = networkName.toLowerCase();
-  return NETWORK_IDS[normalizedName] || networkName;
-};
-
-/**
- * Format a network value for display (ensure it's a user-friendly name)
- * @param network Network ID or name
- * @returns User-friendly network name
- */
-export const formatNetworkForDisplay = (network: string): string => {
-  // If it's a network ID, convert to name
-  if (NETWORKS[network]) {
-    return NETWORKS[network];
-  }
-  
-  // If it's already a name, ensure proper capitalization
-  const networkName = String(network).toLowerCase();
-  if (NETWORK_IDS[networkName]) {
-    return capitalizeFirstLetter(networkName);
-  }
-  
-  // Otherwise, just return the network with first letter capitalized
-  return capitalizeFirstLetter(String(network));
-};
-
-/**
- * Helper function to capitalize the first letter of a string
- */
-const capitalizeFirstLetter = (str: string): string => {
-  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  return NETWORK_NAMES[networkId] || networkId;
 }; 

@@ -1,15 +1,13 @@
-import { Composer } from 'telegraf';
-import { getSession } from '../../utils/session';
+import { Composer, Markup } from 'telegraf';
 import { mainMenuKeyboard } from '../keyboards';
-import { formatHeader, formatSubheader, ICON, SECTION, DIVIDERS } from '../../utils/theme';
+import { formatHeader, formatSubheader, ICON, SECTION, DIVIDERS } from '../../constants';
 
-// Start command handler
 const startCommand = Composer.command('start', async (ctx) => {
   const username = ctx.from?.first_name || 'there';
   
   await ctx.reply(
     `${formatHeader('Welcome to Copperx')} 🚀\n\n` +
-    `👋 Hello ${username}! I'm your personal Copperx assistant for managing USDC transactions directly from Telegram.\n` +
+    `${ICON.welcome} Hello ${username}! I'm your personal Copperx assistant for managing USDC transactions directly from Telegram.\n` +
     DIVIDERS.section +
     `${formatSubheader('What can I do?')}\n` +
     `${SECTION.item}${ICON.balance} Check your wallet balances\n` +

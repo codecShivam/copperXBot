@@ -15,10 +15,18 @@ import { getSession } from '../../utils/session';
 import { Balance, Wallet, WalletWithBalances } from '../../types';
 import { formatNetworkForDisplay, getNetworkName } from '../../utils/networks';
 import { 
-  formatHeader, formatSubheader, formatSuccess, formatError,
-  formatWarning, formatLoading, formatNetworkIcon,
-  SECTION, ICON, DIVIDERS 
-} from '../../utils/theme';
+  SECTION, 
+  ICON, 
+  DIVIDERS,
+  formatHeader,
+  formatSubheader,
+  formatSuccess,
+  formatError,
+  formatWarning,
+  formatLoading,
+  formatNetworkIcon,
+  getSupportedNetworks
+} from '../../constants';
 
 // Cache for balances to avoid frequent API calls
 const balanceCache = new Map<string, {
@@ -61,7 +69,7 @@ const allBalancesAction = Composer.action('balance_all', authMiddleware(), async
 
 // Refresh balances action
 const refreshBalancesAction = Composer.action('balance_refresh', authMiddleware(), async (ctx) => {
-  await ctx.answerCbQuery('🔄 Refreshing your balances...');
+  await ctx.answerCbQuery(`${ICON.refresh} Refreshing your balances...`);
   
   // Clear the cache for this user
   const session = getSession(ctx);
@@ -89,7 +97,8 @@ const walletDetailsAction = Composer.action('wallet_details', authMiddleware(), 
 const walletSettingsAction = Composer.action('wallet_settings', authMiddleware(), async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.reply(
-    '⚙️ *Wallet Settings*\n\nManage your wallet preferences:',
+    formatHeader('Wallet Settings') + DIVIDERS.medium +
+    'Manage your wallet preferences:',
     {
       parse_mode: 'Markdown',
       ...walletSettingsKeyboard()
@@ -125,45 +134,37 @@ const generateWalletAction = Composer.action('wallet_generate', authMiddleware()
 
 // Network selection for wallet generation
 async function showNetworkSelectionForWalletGeneration(ctx) {
-  console.log('[BALANCE] Showing network selection for wallet generation');
-  
   try {
-    await ctx.reply('🔄 Please select a network for your new wallet...');
+    const message = formatHeader('Generate New Wallet') + DIVIDERS.medium + 
+                  'Please select the network for your new wallet:';
     
-    // Define supported networks with their chain IDs
-    const supportedNetworks = [
-      { name: 'Polygon', id: '137' },
-      { name: 'Ethereum', id: '1' },
-      { name: 'Arbitrum', id: '42161' },
-      { name: 'Optimism', id: '10' },
-      { name: 'Base', id: '8453' }
-    ];
+    // Get supported networks from our constants
+    const supportedNetworks = getSupportedNetworks();
     
-    // Create network selection buttons
+    // Create network selection buttons with icons
     const buttons = supportedNetworks.map(network => [
       Markup.button.callback(
-        network.name,
+        `${formatNetworkIcon(network.name)} ${network.name}`,
         `generate_wallet_${network.id}_${network.name}`
       )
     ]);
     
-    buttons.push([Markup.button.callback('⬅️ Back to Wallet Settings', 'wallet_settings')]);
+    buttons.push([Markup.button.callback(`${ICON.back} Back to Wallet Settings`, 'wallet_settings')]);
     
     const networkKeyboard = Markup.inlineKeyboard(buttons);
     
-    await ctx.reply(
-      '🌐 *Select Network*\n\nChoose a network for your new wallet:',
-      {
-        parse_mode: 'Markdown',
-        ...networkKeyboard
-      }
-    );
+    await ctx.reply(message, {
+      parse_mode: 'Markdown',
+      ...networkKeyboard
+    });
   } catch (error) {
-    console.error('[BALANCE] Error showing network selection for wallet generation:', error);
+    console.error('Error showing network selection for wallet generation:', error);
     await ctx.reply(
-      `❌ Failed to show network selection: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
+      formatError('Failed to show network selection') + 
+      `\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
+      { parse_mode: 'Markdown' }
     );
-    await ctx.reply('Return to wallet settings:', backButtonKeyboard('wallet_settings'));
+    await ctx.reply(`${ICON.back} Return to wallet settings:`, backButtonKeyboard('wallet_settings'));
   }
 }
 
@@ -320,8 +321,8 @@ async function fetchAndDisplayBalances(ctx, isRefresh = false) {
     let message = formatHeader('Your Wallet Balances') + DIVIDERS.medium;
     
     Object.entries(balancesByNetwork).forEach(([network, networkBalances]) => {
-      const networkIcon = formatNetworkIcon(network);
       const networkName = formatNetworkForDisplay(network);
+      const networkIcon = formatNetworkIcon(networkName);
       
       // Display user-friendly network name with icon
       message += `*${networkIcon} ${networkName}*\n`;
@@ -357,13 +358,13 @@ async function fetchAndDisplayBalances(ctx, isRefresh = false) {
 // Helper function to show network selection
 async function showNetworkSelection(ctx, page = 0) {
   try {
-    await ctx.reply('🔄 Fetching your networks...');
+    await ctx.reply(`${ICON.loading} Fetching your networks...`);
     
     const { balancesByNetwork } = await getCachedBalances(ctx);
     
     if (Object.keys(balancesByNetwork).length === 0) {
       await ctx.reply(
-        '💰 *No balances found*\n\nYou don\'t have any tokens in your wallets yet.',
+        `${ICON.warning} *No balances found*\n\nYou don\'t have any tokens in your wallets yet.`,
         {
           parse_mode: 'Markdown',
         },
@@ -376,7 +377,7 @@ async function showNetworkSelection(ctx, page = 0) {
     const networks = Object.keys(balancesByNetwork);
     
     await ctx.reply(
-      '🌐 *Select Network*\n\nChoose a network to view token balances:',
+      `${ICON.network} *Select Network*\n\nChoose a network to view token balances:`,
       {
         parse_mode: 'Markdown',
         ...paginatedNetworksKeyboard(networks, page)
@@ -385,7 +386,7 @@ async function showNetworkSelection(ctx, page = 0) {
   } catch (error) {
     console.error('Error fetching networks:', error);
     await ctx.reply(
-      `❌ Failed to fetch networks: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
+      `${ICON.error} Failed to fetch networks: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
     );
     await ctx.reply('Return to balance menu:', backButtonKeyboard('balance'));
   }
@@ -400,7 +401,7 @@ async function showNetworkBalances(ctx, network: string) {
     
     if (networkBalances.length === 0) {
       await ctx.reply(
-        `💰 *No balances found for ${formatNetworkForDisplay(network)}*\n\nYou don't have any tokens on this network.`,
+        `${ICON.warning} *No balances found for ${formatNetworkForDisplay(network)}*\n\nYou don't have any tokens on this network.`,
         {
           parse_mode: 'Markdown',
         },
@@ -411,7 +412,7 @@ async function showNetworkBalances(ctx, network: string) {
     
     // Show the balances with token selection
     await ctx.reply(
-      `💰 *${formatNetworkForDisplay(network)} Balances*\n\nSelect a token for more details:`,
+      `${ICON.balance} *${formatNetworkForDisplay(network)} Balances*\n\nSelect a token for more details:`,
       {
         parse_mode: 'Markdown',
         ...networkTokensKeyboard(networkBalances, network)
@@ -420,7 +421,7 @@ async function showNetworkBalances(ctx, network: string) {
   } catch (error) {
     console.error('Error fetching network balances:', error);
     await ctx.reply(
-      `❌ Failed to fetch balances: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
+      `${ICON.error} Failed to fetch balances: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
     );
     await ctx.reply('Return to networks:', backButtonKeyboard('balance_networks'));
   }
@@ -436,7 +437,7 @@ async function showTokenDetails(ctx, network: string, token: string) {
     
     if (!tokenBalance) {
       await ctx.reply(
-        `❌ Token details not found for ${token} on ${formatNetworkForDisplay(network)}.`,
+        `${ICON.error} Token details not found for ${token} on ${formatNetworkForDisplay(network)}.`,
         {
           parse_mode: 'Markdown',
         },
@@ -447,7 +448,7 @@ async function showTokenDetails(ctx, network: string, token: string) {
     
     const formattedBalance = formatAmount(tokenBalance.balance);
     
-    let message = `💰 *${token} Details on ${formatNetworkForDisplay(network)}*\n\n`;
+    let message = `${ICON.balance} *${token} Details on ${formatNetworkForDisplay(network)}*\n\n`;
     message += `Balance: ${formattedBalance}\n`;
     message += `Token: ${token}\n`;
     message += `Network: ${formatNetworkForDisplay(network)}\n`;
@@ -468,16 +469,16 @@ async function showTokenDetails(ctx, network: string, token: string) {
     
     // Offer options for this token
     const actionButtons = Markup.inlineKeyboard([
-      [Markup.button.callback('💸 Send', `send_init_${network}_${token}`)],
-      [Markup.button.callback('🏦 Withdraw', `withdraw_init_${network}_${token}`)],
-      [Markup.button.callback(`⬅️ Back to ${formatNetworkForDisplay(network)}`, `balance_network_${network}`)],
+      [Markup.button.callback(`${ICON.send} Send`, `send_init_${network}_${token}`)],
+      [Markup.button.callback(`${ICON.withdraw} Withdraw`, `withdraw_init_${network}_${token}`)],
+      [Markup.button.callback(`${ICON.back} Back to ${formatNetworkForDisplay(network)}`, `balance_network_${network}`)],
     ]);
     
     await ctx.reply('Actions for this token:', actionButtons);
   } catch (error) {
     console.error('Error fetching token details:', error);
     await ctx.reply(
-      `❌ Failed to fetch token details: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
+      `${ICON.error} Failed to fetch token details: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
     );
     await ctx.reply(`Return to ${formatNetworkForDisplay(network)} balances:`, backButtonKeyboard(`balance_network_${network}`));
   }
@@ -511,7 +512,7 @@ async function showWalletDetails(ctx) {
     
     wallets.forEach((wallet) => {
       const networkName = formatNetworkForDisplay(wallet.network);
-      message += `${SECTION.item}Network: ${formatNetworkIcon(wallet.network)} *${networkName}*${wallet.isDefault ? ' (Default)' : ''}\n`;
+      message += `${SECTION.item}Network: ${formatNetworkIcon(networkName)} *${networkName}*${wallet.isDefault ? ' (Default)' : ''}\n`;
       message += `${SECTION.item}Address: \`${wallet.walletAddress}\`\n\n`;
     });
 
@@ -520,13 +521,11 @@ async function showWalletDetails(ctx) {
     // Provide wallet management options
     const options = {
       inline_keyboard: [
-        [{ text: `${ICON.refresh} Refresh Balances`, callback_data: 'refresh_balances' }],
-        [{ text: `${ICON.wallet} Generate New Wallet`, callback_data: 'generate_wallet' }],
-        [{ text: `${ICON.back} Back to Balance Menu`, callback_data: 'balance' }]
+          [{ text: `${ICON.back} Back`, callback_data: 'balance' }]
       ]
     };
 
-    await ctx.reply(formatSubheader('Wallet Options'), {
+    await ctx.reply(formatSubheader('Return to Balance Menu'), {
       parse_mode: 'Markdown',
       reply_markup: options
     });
@@ -566,12 +565,11 @@ async function showWalletAddresses(ctx) {
       // Offer to generate a wallet
       const options = {
         inline_keyboard: [
-          [{ text: `${ICON.wallet} Generate New Wallet`, callback_data: 'generate_wallet' }],
-          [{ text: `${ICON.back} Back to Balance Menu`, callback_data: 'balance' }]
+          [{ text: `${ICON.back} Back`, callback_data: 'balance' }]
         ]
       };
       
-      await ctx.reply('What would you like to do?', { reply_markup: options });
+      await ctx.reply('Return to Balance Menu', { reply_markup: options });
       return;
     }
 
@@ -589,7 +587,7 @@ async function showWalletAddresses(ctx) {
     // Display wallets grouped by network
     Object.entries(walletsByNetwork).forEach(([network, networkWallets]) => {
       const networkName = formatNetworkForDisplay(network);
-      const networkIcon = formatNetworkIcon(network);
+      const networkIcon = formatNetworkIcon(networkName);
       
       message += `*${networkIcon} ${networkName}*\n`;
       
@@ -606,12 +604,11 @@ async function showWalletAddresses(ctx) {
     // Provide wallet management options
     const options = {
       inline_keyboard: [
-        [{ text: `${ICON.wallet} Generate New Wallet`, callback_data: 'generate_wallet' }],
-        [{ text: `${ICON.back} Back to Balance Menu`, callback_data: 'balance' }]
+        [{ text: `${ICON.back} Back`, callback_data: 'balance' }]
       ]
     };
     
-    await ctx.reply(formatSubheader('Wallet Options'), {
+    await ctx.reply(formatSubheader('Return to Balance Menu'), {
       parse_mode: 'Markdown',
       reply_markup: options
     });
@@ -633,7 +630,7 @@ async function showWalletAddresses(ctx) {
 // Helper function to show set default wallet
 async function showSetDefaultWallet(ctx) {
   try {
-    await ctx.reply('🔄 Fetching your wallets...');
+    await ctx.reply(`${ICON.loading} Fetching your wallets...`);
     
     // Get token from session
     const session = getSession(ctx);
@@ -645,7 +642,7 @@ async function showSetDefaultWallet(ctx) {
     
     if (!wallets || wallets.length === 0) {
       await ctx.reply(
-        '💼 *No wallets found*\n\nYou don\'t have any wallets configured yet.',
+        `${ICON.wallet} *No wallets found*\n\nYou don\'t have any wallets configured yet.`,
         {
           parse_mode: 'Markdown',
         },
@@ -655,7 +652,7 @@ async function showSetDefaultWallet(ctx) {
     }
     
     await ctx.reply(
-      '🔄 *Set Default Wallet*\n\nSelect a wallet to set as default:',
+      `${ICON.loading} *Set Default Wallet*\n\nSelect a wallet to set as default:`,
       {
         parse_mode: 'Markdown',
         ...walletsKeyboard(wallets, 'set_default')
@@ -664,7 +661,7 @@ async function showSetDefaultWallet(ctx) {
   } catch (error) {
     console.error('Error fetching wallets:', error);
     await ctx.reply(
-      `❌ Failed to fetch wallets: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
+      `${ICON.error} Failed to fetch wallets: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
     );
     await ctx.reply('Return to wallet settings:', backButtonKeyboard('wallet_settings'));
   }
@@ -673,7 +670,7 @@ async function showSetDefaultWallet(ctx) {
 // Helper function to set default wallet
 async function setDefaultWalletHandler(ctx, walletId: string) {
   try {
-    await ctx.reply(`🔄 Setting wallet as default...`);
+    await ctx.reply(`${ICON.loading} Setting wallet as default...`);
     
     // Get token from session
     const session = getSession(ctx);
@@ -683,7 +680,7 @@ async function setDefaultWalletHandler(ctx, walletId: string) {
     await walletApi.setDefaultWallet(token, walletId);
     
     await ctx.reply(
-      '✅ *Default wallet updated successfully!*\n\nThis wallet will now be used as the default for transactions.',
+      `${ICON.success} *Default wallet updated successfully!*\n\nThis wallet will now be used as the default for transactions.`,
       {
         parse_mode: 'Markdown',
       }
@@ -692,7 +689,7 @@ async function setDefaultWalletHandler(ctx, walletId: string) {
   } catch (error) {
     console.error('Error setting default wallet:', error);
     await ctx.reply(
-      `❌ Failed to set default wallet: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
+      `${ICON.error} Failed to set default wallet: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
     );
     await ctx.reply('Return to wallet settings:', backButtonKeyboard('wallet_settings'));
   }
@@ -731,7 +728,7 @@ async function generateNewWallet(ctx, networkId: string, networkName: string) {
 
     await ctx.reply(
       `${ICON.back} Return to wallet menu:`, 
-      backButtonKeyboard('wallets')
+      backButtonKeyboard('wallet_settings')
     );
   } catch (error) {
     console.error('Wallet generation error:', error);
@@ -743,7 +740,7 @@ async function generateNewWallet(ctx, networkId: string, networkName: string) {
     
     await ctx.reply(
       `${ICON.back} Return to wallet menu:`, 
-      backButtonKeyboard('wallets')
+      backButtonKeyboard('wallet_settings')
     );
   }
 }
