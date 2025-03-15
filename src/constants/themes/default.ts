@@ -1,5 +1,5 @@
-// Theme configuration for the Copperx bot
-// Defines color-related styling and emoji patterns for consistency
+// Default theme configuration for the CopperX bot
+// Defines color-related styling and formatting for consistency
 
 // Color palette (These are for reference - actual styling is done with emojis and formatting)
 export const COLORS = {
@@ -23,44 +23,14 @@ export const SECTION = {
   loading: '🔄 '           // Loading indicator
 };
 
-// Feature icons - use emoji that match our color scheme where possible
-export const ICON = {
-  // Main features
-  balance: '💰',
-  send: '💸',
-  receive: '📥',
-  history: '📊',
-  withdraw: '🏦',
-  profile: '👤',
-  help: '❓',
-  
-  // Networks
-  ethereum: '🔹',  // Blue
-  polygon: '💜',  // Purple
-  arbitrum: '🔵',  // Blue
-  optimism: '❤️',  // Red
-  base: '🔷',      // Blue
-  bnb: '🟡',       // Yellow
-  
-  // Actions
-  settings: '⚙️',
-  wallet: '💼',
-  token: '🪙',
-  view: '👁️',
-  add: '➕',
-  refresh: '🔄',
-  back: '⬅️',
-  next: '➡️',
-  confirm: '✅',
-  cancel: '❌',
-  copy: '📋',
-  network: '🌐',
-  key: '🔑',
-  bank: '🏛️',
-  note: '📝',
-  email: '📧',
-  address: '📍'
-};
+// Dividers for visual separation
+export const DIVIDERS = {
+  small: '\n',
+  medium: '\n\n',
+  large: '\n\n\n',
+  section: '\n┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n',
+  dots: '\n• • • • • • • • • • • •\n'
+}; 
 
 // Message styling helpers
 export const formatHeader = (text: string): string => {
@@ -93,24 +63,4 @@ export const formatLoading = (text: string): string => {
 
 export const formatAmount = (amount: string | number, symbol: string = ''): string => {
   return `*${amount}* ${symbol}`.trim();
-};
-
-export const formatNetworkIcon = (network: string): string => {
-  network = network.toLowerCase();
-  if (network.includes('ethereum')) return ICON.ethereum;
-  if (network.includes('polygon')) return ICON.polygon;
-  if (network.includes('arbitrum')) return ICON.arbitrum;
-  if (network.includes('optimism')) return ICON.optimism;
-  if (network.includes('base')) return ICON.base;
-  if (network.includes('bnb')) return ICON.bnb;
-  return ICON.network;
-};
-
-// Dividers for visual separation
-export const DIVIDERS = {
-  small: '\n',
-  medium: '\n\n',
-  large: '\n\n\n',
-  section: '\n┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n',
-  dots: '\n• • • • • • • • • • • •\n'
 }; 
