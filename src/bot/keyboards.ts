@@ -14,12 +14,20 @@ export const mainMenuKeyboard = () => {
     [Markup.button.callback(`${ICON.withdraw} Withdraw`, 'withdraw')],
     [Markup.button.callback(`${ICON.profile} Profile`, 'profile')],
     [Markup.button.callback(`${ICON.help} Help`, 'help')],
+    [Markup.button.callback(`${ICON.balance} Balance`, 'balance')],
+    [Markup.button.callback(`${ICON.send} Send`, 'send')],
+    [Markup.button.callback(`${ICON.receive} Receive`, 'receive')],
+    [Markup.button.callback(`${ICON.history} History`, 'history')],
+    [Markup.button.callback(`${ICON.withdraw} Withdraw`, 'withdraw')],
+    [Markup.button.callback(`${ICON.profile} Profile`, 'profile')],
+    [Markup.button.callback(`${ICON.help} Help`, 'help')],
   ]);
 };
 
 // Simple back button
 export const backButtonKeyboard = (backAction = 'main_menu') => {
   return Markup.inlineKeyboard([
+    [Markup.button.callback(`${ICON.back} Back`, backAction)],
     [Markup.button.callback(`${ICON.back} Back`, backAction)],
   ]);
 };
@@ -33,6 +41,8 @@ export const confirmationKeyboard = (
     [
       Markup.button.callback(`${ICON.confirm} Confirm`, confirmAction),
       Markup.button.callback(`${ICON.cancel} Cancel`, cancelAction),
+      Markup.button.callback(`${ICON.confirm} Confirm`, confirmAction),
+      Markup.button.callback(`${ICON.cancel} Cancel`, cancelAction),
     ],
   ]);
 };
@@ -40,6 +50,12 @@ export const confirmationKeyboard = (
 // Balance menu keyboard
 export const balanceMenuKeyboard = () => {
   return Markup.inlineKeyboard([
+    [Markup.button.callback(`${ICON.balance} View All Balances`, 'balance_all')],
+    [Markup.button.callback(`${ICON.refresh} Refresh Balances`, 'balance_refresh')],
+    [Markup.button.callback(`${ICON.network} View by Network`, 'balance_networks')],
+    [Markup.button.callback(`${ICON.wallet} Wallet Details`, 'wallet_details')],
+    [Markup.button.callback(`${ICON.settings} Wallet Settings`, 'wallet_settings')],
+    [Markup.button.callback(`${ICON.back} Main Menu`, 'main_menu')],
     [Markup.button.callback(`${ICON.balance} View All Balances`, 'balance_all')],
     [Markup.button.callback(`${ICON.refresh} Refresh Balances`, 'balance_refresh')],
     [Markup.button.callback(`${ICON.network} View by Network`, 'balance_networks')],
@@ -56,12 +72,19 @@ export const walletSettingsKeyboard = () => {
     [Markup.button.callback(`${ICON.view} View Wallet Addresses`, 'wallet_view_address')],
     [Markup.button.callback(`${ICON.add} Generate New Wallet`, 'wallet_generate')],
     [Markup.button.callback(`${ICON.back} Back to Balance`, 'balance')],
+    [Markup.button.callback(`${ICON.refresh} Set Default Wallet`, 'wallet_set_default')],
+    [Markup.button.callback(`${ICON.view} View Wallet Addresses`, 'wallet_view_address')],
+    [Markup.button.callback(`${ICON.add} Generate New Wallet`, 'wallet_generate')],
+    [Markup.button.callback(`${ICON.back} Back to Balance`, 'balance')],
   ]);
 };
 
 // Send menu keyboard
 export const sendMenuKeyboard = () => {
   return Markup.inlineKeyboard([
+    [Markup.button.callback(`${ICON.email} Send to Email`, 'send_email')],
+    [Markup.button.callback(`${ICON.wallet} Send to Wallet Address`, 'send_wallet')],
+    [Markup.button.callback(`${ICON.back} Main Menu`, 'main_menu')],
     [Markup.button.callback(`${ICON.email} Send to Email`, 'send_email')],
     [Markup.button.callback(`${ICON.wallet} Send to Wallet Address`, 'send_wallet')],
     [Markup.button.callback(`${ICON.back} Main Menu`, 'main_menu')],
@@ -94,11 +117,13 @@ export const paginatedNetworksKeyboard = (networks: string[], page = 0) => {
     if (page > 0) {
       paginationButtons.push(
         Markup.button.callback(`${ICON.back} Previous`, `network_page_${page - 1}`)
+        Markup.button.callback(`${ICON.back} Previous`, `network_page_${page - 1}`)
       );
     }
     
     if (endIndex < networks.length) {
       paginationButtons.push(
+        Markup.button.callback(`Next ${ICON.next}`, `network_page_${page + 1}`)
         Markup.button.callback(`Next ${ICON.next}`, `network_page_${page + 1}`)
       );
     }
@@ -110,6 +135,7 @@ export const paginatedNetworksKeyboard = (networks: string[], page = 0) => {
   
   // Add back button
   buttons.push([Markup.button.callback(`${ICON.back} Back to Balance`, 'balance')]);
+  buttons.push([Markup.button.callback(`${ICON.back} Back to Balance`, 'balance')]);
   
   return Markup.inlineKeyboard(buttons);
 };
@@ -119,11 +145,13 @@ export const networkTokensKeyboard = (networkBalances, network: string) => {
   const buttons = networkBalances.map(balance => [
     Markup.button.callback(
       `${ICON.token} ${balance.token} (${balance.formattedBalance})`,
+      `${ICON.token} ${balance.token} (${balance.formattedBalance})`,
       `token_details_${network}_${balance.token}`
     )
   ]);
   
   // Add back button
+  buttons.push([Markup.button.callback(`${ICON.back} Back to Networks`, 'balance_networks')]);
   buttons.push([Markup.button.callback(`${ICON.back} Back to Networks`, 'balance_networks')]);
   
   return Markup.inlineKeyboard(buttons);
@@ -145,6 +173,7 @@ export const walletsKeyboard = (wallets: Wallet[], action: string) => {
   });
   
   // Add back button
+  buttons.push([Markup.button.callback(`${ICON.back} Back to Wallet Settings`, 'wallet_settings')]);
   buttons.push([Markup.button.callback(`${ICON.back} Back to Wallet Settings`, 'wallet_settings')]);
   
   return Markup.inlineKeyboard(buttons);
