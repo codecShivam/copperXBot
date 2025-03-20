@@ -12,7 +12,13 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["telegram", "bot", "copperx", "crypto", "payments"],
+  "keywords": [
+    "telegram",
+    "bot",
+    "copperx",
+    "crypto",
+    "payments"
+  ],
   "author": "",
   "license": "ISC",
   "description": "Telegram bot for Copperx Payout API integration",
@@ -23,7 +29,8 @@
     "nodemon": "^3.1.9",
     "pusher-js": "^8.4.0",
     "telegraf": "^4.16.3",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "wallet-address-validator": "^0.2.4"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.26.1",
@@ -34,4 +41,4 @@
     "prettier": "^3.5.3",
     "typescript": "^5.8.2"
   }
-} 
+}
