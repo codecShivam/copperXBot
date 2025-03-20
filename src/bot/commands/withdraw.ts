@@ -1,13 +1,13 @@
 import { Composer } from 'telegraf';
 import { message } from 'telegraf/filters';
-import { BotContext } from '../../types';
-import { walletApi, transfersApi, kycApi } from '../../api';
+import { walletApi,  kycApi } from '../../api';
 import { authMiddleware } from '../middleware/auth';
 import { backButtonKeyboard, confirmationKeyboard } from '../keyboards';
 import { getSession, setTempData, getTempData, clearTempData } from '../../utils/session';
 import { formatAmount } from '../../utils/format';
 import { formatNetworkForDisplay } from '../../utils/networks';
 import { formatLoading } from '../../constants/themes/default';
+import { transfersApi } from '../../api';
 
 // Withdraw command handler
 const withdrawCommand = Composer.command('withdraw', authMiddleware(), async (ctx) => {
@@ -56,6 +56,7 @@ async function startWithdrawal(ctx) {
       );
       
       await ctx.reply('https://copperx.io/blog/how-to-complete-your-kyc-and-kyb-at-copperx-payout');
+      await ctx.reply('*Need help with KYC?* Contact support: https://t.me/copperxcommunity/2183', { parse_mode: 'Markdown' });
       await ctx.reply('Return to main menu:', backButtonKeyboard());
       return;
     }
@@ -481,32 +482,49 @@ const withdrawConfirmAction = Composer.action('withdraw_confirm', authMiddleware
   const isIndianUser = kycInfo && (kycInfo.country.toLowerCase() === 'ind' || kycInfo.country.toLowerCase() === 'india');
   
   try {
-    await ctx.reply('🔄 Processing your withdrawal...');
+    const loadingMsg = await ctx.reply('🔄 Processing your withdrawal...');
     
     // Get token from session
     const authToken = getSession(ctx).token as string;
     
-    // Prepare withdrawal payload
+    // Prepare withdrawal payload with all required fields
     const withdrawalPayload = {
       amount: withdrawAmount,
       currency: tokenValue,
+      network: networkValue,
       bankAccountId: bankAccountId,
-      network: networkValue
+      // Required fields for the API
+      purposeCode: 'self' as const,
+      sourceOfFunds: 'salary' as const,
+      recipientRelationship: 'self' as const,
+      // If we have KYC info, include it in customer data
+      customerData: kycInfo ? {
+        name: `${kycInfo.firstName} ${kycInfo.lastName}`.trim(),
+        country: kycInfo.country,
+      } : undefined,
+      // Add optional note
+      note: `Bank withdrawal of ${withdrawAmount} ${tokenValue} via CopperX Bot`,
     };
     
     console.log('[WITHDRAW] Initiating bank withdrawal with payload:', withdrawalPayload);
     
-    // In a real implementation, this would call the actual API
-    // We'll use the withdrawToBank function from transfersApi
-    // This is commented out since we're simulating the response
-    /*
+    // Make the actual API call
     const response = await transfersApi.withdrawToBank(
       authToken,
       withdrawalPayload
     );
-    */
     
-    // Construct a success message with fee information if available
+    // Delete loading message
+    try {
+      await ctx.deleteMessage(loadingMsg.message_id);
+    } catch (error) {
+      console.warn('[WITHDRAW] Could not delete loading message:', error);
+    }
+    
+    // Extract transaction ID from response
+    const transactionId = response && response.data ? response.data.id || 'pending' : 'pending';
+    
+    // Construct a success message with fee information and transaction details
     let receiveAmount = withdrawAmount;
     let usdEquivalent = '';
     let inrEquivalent = '';
@@ -559,18 +577,20 @@ const withdrawConfirmAction = Composer.action('withdraw_confirm', authMiddleware
       `*Fees:* ${feeEstimate.totalFee}\n` : 
       `*Fees:* $${(2 + parseFloat(withdrawAmount) * 0.015).toFixed(2)}\n`;
     
-    // Simulate successful response
+    // Send success message with transaction details
     await ctx.reply(
       '✅ *Withdrawal Request Submitted*\n\n' +
       'Your withdrawal request has been submitted successfully.\n\n' +
       `*Transaction Details:*\n` +
+      `*Transaction ID:* ${transactionId}\n` +
       `*Amount:* ${withdrawAmount} ${tokenValue}\n` +
       `*Network:* ${formatNetworkForDisplay(networkValue)}\n` +
-      `*Status:* Pending\n` +
+      `*Status:* ${response && response.data ? response.data.status || 'Pending' : 'Pending'}\n` +
       feeDetails +
       `*You will receive:* ${receiveAmount} ${tokenValue}${usdEquivalent}` +
       inrEquivalent + '\n\n' +
-      'Bank withdrawals typically take 1-3 business days to process.',
+      'Bank withdrawals typically take 1-3 business days to process.\n\n' +
+      '*Questions about your withdrawal?* Contact support: https://t.me/copperxcommunity/2183',
       {
         parse_mode: 'Markdown',
       },
@@ -585,8 +605,22 @@ const withdrawConfirmAction = Composer.action('withdraw_confirm', authMiddleware
     await ctx.reply('Return to main menu:', backButtonKeyboard());
   } catch (error) {
     console.error('Error processing withdrawal:', error);
+    
+    // Format a user-friendly error message
+    let errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Make the error message more user-friendly based on common errors
+    if (errorMessage.toLowerCase().includes('insufficient')) {
+      errorMessage = 'Insufficient funds for this withdrawal. Please try a smaller amount.';
+    } else if (errorMessage.toLowerCase().includes('limit')) {
+      errorMessage = 'This withdrawal exceeds your limits. Please try a smaller amount or contact support.';
+    } else if (errorMessage.toLowerCase().includes('kyc') || errorMessage.toLowerCase().includes('verification')) {
+      errorMessage = 'KYC verification issue. Please ensure your verification is complete and up to date.';
+    }
+    
     await ctx.reply(
-      `❌ Withdrawal failed: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
+      `❌ *Withdrawal Failed*\n\n${errorMessage}\n\nPlease try again later or contact support if the issue persists.\n\n*Need help?* Contact support: https://t.me/copperxcommunity/2183`,
+      { parse_mode: 'Markdown' }
     );
     
     // Reset step

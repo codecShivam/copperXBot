@@ -4,7 +4,6 @@ import {
   ApiResponse,
   EmailTransferPayload,
   WalletTransferPayload,
-  BankWithdrawalPayload,
   Transfer,
 } from '../types';
 
@@ -283,6 +282,33 @@ export const sendWalletTransfer = async (token: string, data: {
 };
 
 /**
+ * Interface for bank withdrawal payload
+ */
+export interface BankWithdrawalPayload {
+  amount: string;
+  currency: string;
+  network?: string;
+  bankAccountId?: string;
+  note?: string;
+  // New fields required by the API
+  invoiceNumber?: string;
+  invoiceUrl?: string;
+  purposeCode?: 'self' | 'family_support' | 'education' | 'medical' | 'travel' | 'business' | 'other';
+  sourceOfFunds?: 'salary' | 'business_income' | 'investments' | 'inheritance' | 'savings' | 'gift' | 'other';
+  recipientRelationship?: 'self' | 'family' | 'friend' | 'business' | 'other';
+  quotePayload?: string;
+  quoteSignature?: string;
+  preferredWalletId?: string;
+  customerData?: {
+    name?: string;
+    businessName?: string;
+    email?: string;
+    country?: string;
+  };
+  sourceOfFundsFile?: string;
+}
+
+/**
  * Withdraw funds to a bank account
  * @param token Authentication token
  * @param payload Bank withdrawal payload
@@ -293,19 +319,39 @@ export const withdrawToBank = async (
   payload: BankWithdrawalPayload,
 ): Promise<ApiResponse<Transfer>> => {
   try {
-    const response = await api.post('/transfers/offramp', payload, {
+    console.log(`[API] Initiating bank withdrawal for ${payload.amount} ${payload.currency}`);
+    
+    // Set default values for required fields if not provided
+    const enhancedPayload = {
+      ...payload,
+      purposeCode: payload.purposeCode || 'self',
+      sourceOfFunds: payload.sourceOfFunds || 'salary',
+      recipientRelationship: payload.recipientRelationship || 'self',
+      // If customerData not provided, include an empty object
+      customerData: payload.customerData || {},
+    };
+    
+    console.log(`[API] Bank withdrawal payload:`, JSON.stringify(enhancedPayload, null, 2));
+    
+    const response = await api.post('/transfers/offramp', enhancedPayload, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
+    
+    console.log(`[API] Bank withdrawal response:`, JSON.stringify(response.data, null, 2));
+    
     return response.data;
   } catch (error) {
+    console.error('[API] Bank withdrawal error:', error);
+    
     if (axios.isAxiosError(error) && error.response) {
+      console.error('[API] Bank withdrawal response error:', error.response.data);
       throw new Error(
         error.response.data.message || 'Failed to withdraw to bank',
       );
     }
-    throw new Error('Network error occurred');
+    throw new Error('Network error occurred during bank withdrawal');
   }
 };
 

@@ -901,7 +901,7 @@ const sendConfirmAction = Composer.action('send_confirm', authMiddleware(), asyn
     }
     
     await ctx.reply(
-      userFriendlyMessage,
+      userFriendlyMessage + '\n\n*Need help?* Contact support: https://t.me/copperxcommunity/2183',
       { parse_mode: 'Markdown' }
     );
     
