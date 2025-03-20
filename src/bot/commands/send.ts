@@ -314,19 +314,28 @@ const sendFlow = Composer.on(message('text'), async (ctx, next) => {
       return;
     }
     
-    // Store amount
-    setTempData(ctx, 'amount', text);
-    
-    // Ask for note (optional)
-    await ctx.reply(
-      '📝 *Add Note (Optional)*\n\nPlease enter a note for this transaction, or type "skip" to continue without a note:',
-      {
-        parse_mode: 'Markdown',
-      },
-    );
-    
-    // Update step
-    session.currentStep = 'send_note';
+    try {
+      // Store the original amount as entered by the user
+      // The API layer will handle the multiplication by 10^8
+      setTempData(ctx, 'amount', amount.toString());
+      setTempData(ctx, 'displayAmount', text); // Original user input for display
+      
+      console.log(`[SEND] User entered amount: ${amount} - will be multiplied by 10^8 in API layer`);
+      
+      // Ask for note (optional)
+      await ctx.reply(
+        '📝 *Add Note (Optional)*\n\nPlease enter a note for this transaction, or type "skip" to continue without a note:',
+        {
+          parse_mode: 'Markdown',
+        },
+      );
+      
+      // Update step
+      session.currentStep = 'send_note';
+    } catch (error) {
+      console.error('[SEND] Error handling amount:', error);
+      await ctx.reply('❌ Invalid amount format. Please try a different amount:');
+    }
     return;
   }
   
@@ -337,12 +346,13 @@ const sendFlow = Composer.on(message('text'), async (ctx, next) => {
       setTempData(ctx, 'note', text);
     }
     
-    // Show confirmation
+    // Show confirmation with original amount but use converted amount in the API call
     const transferType = getTempData(ctx, 'transferType') as string;
     const recipient = getTempData(ctx, 'recipient') as string;
     const network = getTempData(ctx, 'network') as string;
     const token = getTempData(ctx, 'token') as string;
-    const amount = getTempData(ctx, 'amount') as string;
+    const amount = getTempData(ctx, 'amount') as string; // This is now the scaled amount (10^8)
+    const displayAmount = getTempData(ctx, 'displayAmount') as string; // Original amount for display
     const note = getTempData(ctx, 'note') as string;
     
     let message = '✅ *Confirm Transaction*\n\n';
@@ -357,7 +367,7 @@ const sendFlow = Composer.on(message('text'), async (ctx, next) => {
     
     message += `*Network:* ${formatNetworkForDisplay(network)}\n`;
     message += `*Token:* ${token}\n`;
-    message += `*Amount:* ${amount}\n`;
+    message += `*Amount:* ${displayAmount}\n`; // Use display amount here
     
     if (note) {
       message += `*Note:* ${note}\n`;
@@ -387,21 +397,23 @@ const sendConfirmAction = Composer.action('send_confirm', authMiddleware(), asyn
   const recipient = getTempData(ctx as any, 'recipient') as string;
   const network = getTempData(ctx as any, 'network') as string;
   const token = getTempData(ctx as any, 'token') as string;
-  const amount = getTempData(ctx as any, 'amount') as string;
+  const amount = getTempData(ctx as any, 'amount') as string; // Already scaled by 10^8
   const note = getTempData(ctx as any, 'note') as string;
   
   try {
     // Get auth token
     const authToken = getSession(ctx).token as string;
     
-    await ctx.reply('🔄 Processing your transaction...');
+    const loadingMsg = await ctx.reply('🔄 Processing your transaction...');
+    
+    console.log(`[SEND] Initiating ${transferType} transfer of ${amount} ${token} (raw amount) to ${recipient}`);
     
     let response;
     
     if (transferType === 'email') {
       // Send to email
       response = await transfersApi.sendEmailTransfer(authToken, {
-        amount,
+        amount, // Already scaled
         token,
         receiverEmail: recipient,
         network,
@@ -410,7 +422,7 @@ const sendConfirmAction = Composer.action('send_confirm', authMiddleware(), asyn
     } else {
       // Send to wallet
       response = await transfersApi.sendWalletTransfer(authToken, {
-        amount,
+        amount, // Already scaled
         token,
         receiverAddress: recipient,
         network,
@@ -434,9 +446,32 @@ const sendConfirmAction = Composer.action('send_confirm', authMiddleware(), asyn
     
     await ctx.reply('Return to main menu:', backButtonKeyboard());
   } catch (error) {
-    console.error('Error processing transaction:', error);
+    console.error('[SEND] Error processing transaction:', error);
+    
+    let errorMessage = 'Unknown error';
+    
+    // Try to extract a meaningful error message
+    if (error.response && error.response.data) {
+      console.error('[SEND] API error response:', JSON.stringify(error.response.data));
+      
+      if (error.response.data.message) {
+        if (Array.isArray(error.response.data.message)) {
+          // Handle validation error array format
+          errorMessage = error.response.data.message
+            .map(err => `${err.property}: ${Object.values(err.constraints || {}).join(', ')}`)
+            .join('; ');
+        } else {
+          errorMessage = error.response.data.message;
+        }
+      } else if (error.response.data.error) {
+        errorMessage = error.response.data.error;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
     await ctx.reply(
-      `❌ Transaction failed: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
+      `❌ Transaction failed: ${errorMessage}\n\nPlease try again with a different amount or recipient.`,
     );
     
     // Reset step

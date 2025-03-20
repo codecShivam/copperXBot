@@ -3,12 +3,8 @@
 
 // Feature icons - use emoji that match our color scheme where possible
 export const ICON = {
-
-
   // Welcome
   welcome: '👋',
-  
-  
   
   // Main features
   balance: '💰',
@@ -18,7 +14,8 @@ export const ICON = {
   withdraw: '🏦',
   profile: '👤',
   help: '❓',
-  
+  logout: '🔒',
+
   // Networks
   ethereum: '🔹',  // Blue
   polygon: '💜',  // Purple

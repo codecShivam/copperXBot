@@ -129,13 +129,55 @@ export interface BankWithdrawalPayload {
 
 export interface Transfer {
   id: string;
-  amount: string;
-  token: string;
-  status: string;
-  network: string;
-  type: string;
   createdAt: string;
   updatedAt: string;
+  organizationId: string;
+  type: string;
+  providerCode?: string;
+  kycId?: string;
+  transferId: string;
+  status: string;
+  externalStatus?: string;
+  fromAccountId: string;
+  toAccountId: string;
+  fromAmount: string;
+  fromCurrency: string;
+  toAmount: string;
+  toCurrency: string;
+  totalFee?: string;
+  feeCurrency?: string;
+  transactionHash?: string;
+  externalCustomerId?: string;
+  externalTransactionId?: string;
+  depositUrl?: string;
+  depositAccount?: {
+    id: string;
+    walletAddress?: string;
+    type?: string;
+    network?: string;
+    country?: string;
+  };
+  fromAccount?: {
+    id: string;
+    type?: string;
+    network?: string;
+    walletAddress?: string;
+    accountId?: string;
+    country?: string;
+  };
+  toAccount?: {
+    id: string;
+    type?: string;
+    network?: string;
+    walletAddress?: string;
+    accountId?: string;
+    bankName?: string;
+    bankAddress?: string;
+    bankRoutingNumber?: string;
+    bankAccountNumber?: string;
+    country?: string;
+  };
+  // Maintain backward compatibility with existing code
   sender?: {
     email: string;
   };
@@ -147,6 +189,10 @@ export interface Transfer {
     id: string;
     name: string;
   };
+  // Helper properties for formatting in UI
+  amount?: string;
+  token?: string;
+  network?: string;
 }
 
 // Bank account types
