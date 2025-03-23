@@ -12,6 +12,7 @@ build/
 .env
 .env.*
 !.env.example
+!.env.docker.example
 
 # Logs
 logs/
@@ -29,4 +30,20 @@ logs/
 
 # OS generated files
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Docker specific
+.docker/
+docker-compose.override.yml
+docker-volume-data/
+
+# Temporary files
+.tmp/
+temp/
+tmp/
+
+# Coverage reports
+coverage/
+
+# Local development specific files
+.local-dev/ 
