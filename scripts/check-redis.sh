@@ -11,34 +11,77 @@ NC='\033[0m' # No Color
 echo -e "${YELLOW}CopperX Bot Redis Connection Test${NC}"
 echo "=============================="
 
-# Detect environment (Docker or local)
-IN_DOCKER=false
-if [ -f /.dockerenv ] || grep -q docker /proc/self/cgroup 2>/dev/null; then
-    IN_DOCKER=true
-    echo -e "${BLUE}Detected Docker environment${NC}"
+# First check if Docker containers are running
+if docker ps | grep -q redis; then
+    echo -e "${BLUE}Docker Redis container detected${NC}"
+    echo -e "${GREEN}✓ Redis container is running in Docker${NC}"
+    
+    # Check Docker Redis connectivity
+    echo ""
+    echo -e "${YELLOW}Testing Docker Redis connection...${NC}"
+    
+    # Get Redis password from .env
+    if [ -f ".env" ] && grep -q "REDIS_PASSWORD" ".env"; then
+        REDIS_PASSWORD=$(grep "REDIS_PASSWORD" ".env" | cut -d '=' -f2)
+        
+        # Test Redis connection using the password
+        redis_ping=$(docker exec -it copperxbot-redis-1 redis-cli -a "$REDIS_PASSWORD" ping 2>&1)
+        if [[ "$redis_ping" == *"PONG"* ]]; then
+            echo -e "${GREEN}✓ Successfully connected to Redis in Docker!${NC}"
+            
+            # Check bot connectivity to Redis
+            echo -e "${YELLOW}Checking if bot container can connect to Redis...${NC}"
+            docker logs copperxbot-bot-1 | grep -i "redis" | tail -5
+            
+            echo -e "\n${GREEN}Your Redis setup in Docker appears to be working correctly.${NC}"
+            echo -e "${GREEN}No need to install Redis on the host system.${NC}"
+            exit 0
+        else
+            echo -e "${RED}❌ Failed to connect to Redis in Docker${NC}"
+            echo "Error: $redis_ping"
+        fi
+    else
+        echo -e "${RED}❌ Could not find REDIS_PASSWORD in .env file${NC}"
+    fi
 else
     echo -e "${BLUE}Detected local environment${NC}"
-fi
-
-# Check if Redis is installed (only for local environment)
-if [ "$IN_DOCKER" = false ]; then
-    if ! command -v redis-cli &> /dev/null; then
-        echo -e "${RED}❌ Redis is not installed!${NC}"
-        echo "Please install Redis first:"
-        echo "sudo dnf install redis -y"
-        exit 1
-    fi
-
-    # Check if Redis service is running
-    redis_status=$(systemctl is-active redis)
-    if [ "$redis_status" != "active" ]; then
-        echo -e "${RED}❌ Redis service is not running!${NC}"
-        echo "Start Redis with:"
-        echo "sudo systemctl start redis"
-        echo "sudo systemctl enable redis"
-        exit 1
+    
+    # Check if Redis is installed (only for local environment)
+    if command -v redis-cli &> /dev/null; then
+        echo -e "${GREEN}✓ Redis is installed${NC}"
+        
+        # Check if Redis service is running
+        if command -v systemctl &> /dev/null; then
+            redis_status=$(systemctl is-active redis)
+            if [ "$redis_status" != "active" ]; then
+                echo -e "${RED}❌ Redis service is not running!${NC}"
+                echo "Start Redis with:"
+                echo "sudo systemctl start redis"
+                echo "sudo systemctl enable redis"
+                exit 1
+            else
+                echo -e "${GREEN}✓ Redis service is running${NC}"
+            fi
+        else
+            echo "Cannot check Redis service status (systemctl not available)"
+        fi
     else
-        echo -e "${GREEN}✓ Redis service is running${NC}"
+        echo -e "${RED}❌ Redis is not installed!${NC}"
+        
+        # Detect OS and suggest correct installation command
+        if [ -f /etc/redhat-release ] || [ -f /etc/fedora-release ]; then
+            echo "Please install Redis first:"
+            echo "sudo dnf install redis -y"
+        elif [ -f /etc/amazon-release ] || grep -q "Amazon Linux" /etc/system-release 2>/dev/null; then
+            echo "Please install Redis first:"
+            echo "sudo yum install redis -y"
+        elif [ -f /etc/debian_version ]; then
+            echo "Please install Redis first:"
+            echo "sudo apt install redis-server -y"
+        else
+            echo "Please install Redis using your system's package manager"
+        fi
+        exit 1
     fi
 fi
 
@@ -68,17 +111,11 @@ if [ -f "$ENV_FILE" ]; then
     # Check Redis host configuration
     if grep -q "REDIS_HOST" "$ENV_FILE"; then
         REDIS_HOST=$(grep "REDIS_HOST" "$ENV_FILE" | cut -d '=' -f2)
-        if [ "$IN_DOCKER" = true ] && [ "$REDIS_HOST" = "localhost" ]; then
-            echo -e "${RED}❌ Redis host is set to 'localhost' in Docker environment!${NC}"
-            echo "In Docker, you should use 'redis' as the hostname (service name from docker-compose.yml)."
-            echo "Please update your .env file to set REDIS_HOST=redis"
-        elif [ "$IN_DOCKER" = true ] && [ "$REDIS_HOST" = "redis" ]; then
-            echo -e "${GREEN}✓ Redis host correctly set to 'redis' for Docker environment${NC}"
-        elif [ "$IN_DOCKER" = false ] && [ "$REDIS_HOST" = "redis" ]; then
+        if [ "$REDIS_HOST" = "redis" ]; then
             echo -e "${YELLOW}⚠️ Redis host is set to 'redis' in local environment${NC}"
             echo "This is correct for Docker, but for local development you might want to use 'localhost'"
             echo "unless you have specifically named your Redis instance 'redis' in your hosts file."
-        elif [ "$IN_DOCKER" = false ] && [ "$REDIS_HOST" = "localhost" ]; then
+        elif [ "$REDIS_HOST" = "localhost" ]; then
             echo -e "${GREEN}✓ Redis host correctly set to 'localhost' for local environment${NC}"
         else
             echo -e "${YELLOW}⚠️ Redis host set to '${REDIS_HOST}' - make sure this is correct for your environment${NC}"
