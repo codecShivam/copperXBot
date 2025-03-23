@@ -9,7 +9,6 @@ export const ICON = {
   // Main features
   balance: '💰',
   send: '💸',
-  receive: '📥',
   history: '📊',
   withdraw: '🏦',
   profile: '👤',

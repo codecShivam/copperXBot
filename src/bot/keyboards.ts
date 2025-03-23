@@ -9,7 +9,6 @@ export const mainMenuKeyboard = () => {
   return Markup.inlineKeyboard([
     [Markup.button.callback(`${ICON.balance} Balance`, 'balance')],
     [Markup.button.callback(`${ICON.send} Send`, 'send')],
-    [Markup.button.callback(`${ICON.receive} Receive`, 'receive')],
     [Markup.button.callback(`${ICON.history} History`, 'history')],
     [Markup.button.callback(`${ICON.withdraw} Withdraw`, 'withdraw')],
     [Markup.button.callback(`${ICON.profile} Profile`, 'profile')],
