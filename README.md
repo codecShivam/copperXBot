@@ -123,34 +123,6 @@ src/
    docker-compose up -d
    ```
 
-4. Set up a systemd service for auto-start (optional)
-   ```bash
-   sudo nano /etc/systemd/system/copperxbot.service
-   ```
-
-   ```
-   [Unit]
-   Description=CopperX Payout Bot
-   After=docker.service
-   Requires=docker.service
-
-   [Service]
-   Type=simple
-   WorkingDirectory=/path/to/copperxbot
-   ExecStart=/usr/local/bin/docker-compose up
-   ExecStop=/usr/local/bin/docker-compose down
-   Restart=always
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-5. Enable and start the service
-   ```bash
-   sudo systemctl enable copperxbot.service
-   sudo systemctl start copperxbot.service
-   ```
-
 ## 📜 Available Scripts
 
 - `npm start` - Start the bot in production mode
