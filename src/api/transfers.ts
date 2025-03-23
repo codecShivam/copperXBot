@@ -282,6 +282,219 @@ export const sendWalletTransfer = async (token: string, data: {
 };
 
 /**
+ * Get offramp quote for bank withdrawal
+ * @param token Authentication token
+ * @param quoteData Quote request data
+ * @returns Promise with quote response
+ */
+export const getOfframpQuote = async (
+  token: string,
+  quoteData: {
+    amount: string;
+    currency: string;
+    destinationCountry: string;
+    onlyRemittance: boolean;
+    preferredBankAccountId: string;
+    sourceCountry: string;
+  }
+): Promise<any> => {
+  try {
+    // Ensure amount is properly formatted (as smallest unit)
+    if (quoteData.amount && !quoteData.amount.includes('e+')) {
+      quoteData.amount = formatCryptoAmount(quoteData.amount);
+    }
+    
+    console.log('[API] Getting offramp quote with data:', {
+      ...quoteData,
+      preferredBankAccountId: quoteData.preferredBankAccountId.slice(0, 8) + '...'
+    });
+    
+    const response = await api.post('/quotes/offramp', quoteData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    
+    console.log('[API] Offramp quote response status:', response.status);
+    console.log('[API] Quote payload signature:', response.data.quoteSignature?.slice(0, 20) + '...');
+    
+    // Parse and validate quote payload for additional checks
+    try {
+      const quotePayload = JSON.parse(response.data.quotePayload);
+      console.log('[API] Quote details:', {
+        fromAmount: parseInt(quotePayload.amount) / 1e8,
+        toAmount: parseInt(quotePayload.toAmount) / 1e8,
+        fee: parseInt(quotePayload.totalFee) / 1e8,
+        rate: quotePayload.rate
+      });
+    } catch (e) {
+      console.warn('[API] Could not parse quote payload:', e);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('[API] Offramp quote error:', error);
+    
+    // Better error handling
+    let errorMessage = 'Unknown API error';
+    
+    if (error.response && error.response.data) {
+      console.error('[API] Error response data:', JSON.stringify(error.response.data));
+      
+      // Handle various error formats
+      if (typeof error.response.data.message === 'string') {
+        errorMessage = error.response.data.message;
+      } else if (Array.isArray(error.response.data.message)) {
+        errorMessage = error.response.data.message.join(', ');
+      } else if (error.response.data.error) {
+        errorMessage = error.response.data.error;
+      } else {
+        errorMessage = `API Error: ${error.response.status} - ${error.response.statusText}`;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Create offramp transfer to withdraw funds to bank
+ * @param token Authentication token
+ * @param transferData Transfer request data
+ * @returns Promise with transfer response
+ */
+export const createOfframpTransfer = async (
+  token: string,
+  transferData: {
+    purposeCode: string;
+    quotePayload: string;
+    quoteSignature: string;
+  }
+): Promise<any> => {
+  try {
+    console.log('[API] Creating offramp transfer with signature:', 
+      transferData.quoteSignature?.slice(0, 15) + '...');
+    
+    const response = await api.post('/transfers/offramp', transferData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    
+    console.log('[API] Offramp transfer response status:', response.status);
+    console.log('[API] Transfer ID:', response.data.id);
+    console.log('[API] Transfer status:', response.data.status);
+    
+    return response.data;
+  } catch (error) {
+    console.error('[API] Offramp transfer error:', error);
+    
+    // Better error handling with specific messages for common errors
+    let errorMessage = 'Unknown API error';
+    
+    if (error.response) {
+      console.error('[API] Error status:', error.response.status);
+      console.error('[API] Error data:', JSON.stringify(error.response.data));
+      
+      // Handle specific error statuses
+      if (error.response.status === 400) {
+        errorMessage = 'Invalid transfer request: ' + 
+          (error.response.data.message || 'Please check your withdrawal details');
+      } else if (error.response.status === 401) {
+        errorMessage = 'Authentication error: Your session has expired. Please log in again.';
+      } else if (error.response.status === 422) {
+        // Validation errors
+        if (Array.isArray(error.response.data.message)) {
+          errorMessage = error.response.data.message.join(', ');
+        } else {
+          errorMessage = error.response.data.message || 'Validation failed';
+        }
+      } else if (error.response.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please try again later.';
+      } else {
+        errorMessage = error.response.data.message || 
+          `API Error: ${error.response.status} - ${error.response.statusText}`;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Get user's bank accounts and payment methods
+ * @param token Authentication token
+ * @returns Promise with accounts data
+ */
+export const getAccounts = async (token: string): Promise<{ 
+  success: boolean, 
+  data: any[] 
+}> => {
+  try {
+    console.log('[API] Fetching user accounts...');
+    
+    const response = await api.get('/accounts', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    
+    console.log(`[API] Accounts response status: ${response.status}`);
+    console.log(`[API] Found ${response.data.data?.length || 0} accounts`);
+    
+    if (response.data.data) {
+      // Count bank accounts vs. other account types for debugging
+      const accountTypes = {};
+      response.data.data.forEach(acc => {
+        const type = acc.type || 'unknown';
+        accountTypes[type] = (accountTypes[type] || 0) + 1;
+      });
+      console.log('[API] Account types:', accountTypes);
+      
+      // Check verification status of bank accounts
+      const bankAccounts = response.data.data.filter(acc => acc.type === 'bank_account');
+      if (bankAccounts.length > 0) {
+        const statusCounts = {};
+        bankAccounts.forEach(acc => {
+          const status = acc.status || 'unknown';
+          statusCounts[status] = (statusCounts[status] || 0) + 1;
+        });
+        console.log('[API] Bank account verification status:', statusCounts);
+      }
+    }
+    
+    return {
+      success: true,
+      data: response.data.data || []
+    };
+  } catch (error) {
+    console.error('[API] Error fetching accounts:', error);
+    
+    // Better error handling
+    let errorMessage = 'Unknown API error';
+    
+    if (error.response && error.response.data) {
+      console.error('[API] Error response data:', JSON.stringify(error.response.data));
+      if (typeof error.response.data.message === 'string') {
+        errorMessage = error.response.data.message;
+      } else if (error.response.data.error) {
+        errorMessage = error.response.data.error;
+      } else {
+        errorMessage = `API Error: ${error.response.status} - ${error.response.statusText}`;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    throw new Error(errorMessage);
+  }
+};
+
+/**
  * Interface for bank withdrawal payload
  */
 export interface BankWithdrawalPayload {
@@ -379,5 +592,215 @@ export const sendBatchTransfers = async (
       );
     }
     throw new Error('Network error occurred');
+  }
+};
+
+/**
+ * Send batch payments to multiple recipients
+ * @param token Authentication token
+ * @param batchPayments Array of payment objects
+ * @returns Promise with batch transfer response
+ */
+export const sendBatchPayments = async (
+  token: string,
+  batchPayments: Array<{
+    email: string;
+    amount: string;
+    currency: string;
+    purposeCode: string;
+    note?: string;
+  }>
+) => {
+  try {
+    console.log(`[API] Sending batch payment with ${batchPayments.length} recipients`);
+    
+    // Format all amounts in the batch
+    const formattedBatch = batchPayments.map(payment => ({
+      ...payment,
+      amount: formatCryptoAmount(payment.amount)
+    }));
+    
+    console.log('[API] Formatted batch payment requests:', JSON.stringify(formattedBatch, null, 2));
+    
+    const response = await api.post('/transfers/send-batch', 
+      { transfers: formattedBatch },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    
+    console.log(`[API] Batch payment response status: ${response.status}`);
+    console.log(`[API] Batch payment response data:`, JSON.stringify(response.data, null, 2));
+    
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.error('[API] Batch payment error:', error);
+    
+    // Better error handling
+    let errorMessage = 'Unknown API error';
+    
+    if (error.response && error.response.data) {
+      console.error('[API] Error response data:', JSON.stringify(error.response.data));
+      if (typeof error.response.data.message === 'string') {
+        errorMessage = error.response.data.message;
+      } else if (error.response.data.error) {
+        errorMessage = error.response.data.error;
+      } else {
+        errorMessage = `API Error: ${error.response.status} - ${error.response.statusText}`;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Get bank withdrawal quote for fiat conversion
+ * @param token Authentication token
+ * @param quoteRequest Quote request data
+ * @returns Promise with quote response
+ */
+export const getBankWithdrawalQuote = async (
+  token: string,
+  quoteRequest: {
+    amount: string;
+    currency: string;
+    destinationCountry: string;
+    onlyRemittance: boolean;
+    preferredBankAccountId: string;
+    sourceCountry: string;
+  }
+): Promise<any> => {
+  try {
+    // Ensure amount is properly formatted (as smallest unit)
+    if (quoteRequest.amount && !quoteRequest.amount.includes('e+')) {
+      quoteRequest.amount = formatCryptoAmount(quoteRequest.amount);
+    }
+    
+    console.log('[API] Getting bank withdrawal quote with data:', {
+      ...quoteRequest,
+      preferredBankAccountId: quoteRequest.preferredBankAccountId.slice(0, 8) + '...'
+    });
+    
+    const response = await api.post('/quotes/offramp', quoteRequest, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    
+    console.log('[API] Bank quote response status:', response.status);
+    console.log('[API] Quote payload signature:', response.data.quoteSignature?.slice(0, 20) + '...');
+    
+    // Parse and validate quote payload for additional checks
+    try {
+      const quotePayload = JSON.parse(response.data.quotePayload);
+      console.log('[API] Quote details:', {
+        fromAmount: parseInt(quotePayload.amount) / 1e8,
+        toAmount: parseInt(quotePayload.toAmount) / 1e8,
+        fee: parseInt(quotePayload.totalFee) / 1e8,
+        rate: quotePayload.rate
+      });
+    } catch (e) {
+      console.warn('[API] Could not parse quote payload:', e);
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('[API] Bank quote error:', error);
+    
+    // Better error handling
+    let errorMessage = 'Unknown API error';
+    
+    if (error.response && error.response.data) {
+      console.error('[API] Error response data:', JSON.stringify(error.response.data));
+      
+      // Handle various error formats
+      if (typeof error.response.data.message === 'string') {
+        errorMessage = error.response.data.message;
+      } else if (Array.isArray(error.response.data.message)) {
+        errorMessage = error.response.data.message.join(', ');
+      } else if (error.response.data.error) {
+        errorMessage = error.response.data.error;
+      } else {
+        errorMessage = `API Error: ${error.response.status} - ${error.response.statusText}`;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Process bank withdrawal transfer
+ * @param token Authentication token
+ * @param withdrawalData Withdrawal request data
+ * @returns Promise with transfer response
+ */
+export const processBankWithdrawal = async (
+  token: string,
+  withdrawalData: {
+    purposeCode: string;
+    quotePayload: string;
+    quoteSignature: string;
+  }
+): Promise<any> => {
+  try {
+    console.log('[API] Processing bank withdrawal with signature:', 
+      withdrawalData.quoteSignature?.slice(0, 15) + '...');
+    
+    const response = await api.post('/transfers/offramp', withdrawalData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    
+    console.log('[API] Bank withdrawal response status:', response.status);
+    console.log('[API] Withdrawal ID:', response.data.id);
+    console.log('[API] Withdrawal status:', response.data.status);
+    
+    return response.data;
+  } catch (error) {
+    console.error('[API] Bank withdrawal error:', error);
+    
+    // Better error handling with specific messages for common errors
+    let errorMessage = 'Unknown API error';
+    
+    if (error.response) {
+      console.error('[API] Error status:', error.response.status);
+      console.error('[API] Error data:', JSON.stringify(error.response.data));
+      
+      // Handle specific error statuses
+      if (error.response.status === 400) {
+        errorMessage = 'Invalid withdrawal request: ' + 
+          (error.response.data.message || 'Please check your withdrawal details');
+      } else if (error.response.status === 401) {
+        errorMessage = 'Authentication error: Your session has expired. Please log in again.';
+      } else if (error.response.status === 422) {
+        // Validation errors
+        if (Array.isArray(error.response.data.message)) {
+          errorMessage = error.response.data.message.join(', ');
+        } else {
+          errorMessage = error.response.data.message || 'Validation failed';
+        }
+      } else if (error.response.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please try again later.';
+      } else {
+        errorMessage = error.response.data.message || 
+          `API Error: ${error.response.status} - ${error.response.statusText}`;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    throw new Error(errorMessage);
   }
 }; 

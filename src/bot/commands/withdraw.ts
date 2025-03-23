@@ -249,269 +249,220 @@ const withdrawFlow = Composer.on(message('text'), async (ctx, next) => {
     // Store amount
     setTempData(ctx, 'amount', text);
     
-    // In a real implementation, we would fetch the user's bank accounts
-    // Let's get the KYC data to use for showing bank information
-    const authToken = session.token as string;
-    const kycStatus = await kycApi.getKycStatus(authToken);
-    
-    if (kycStatus.success && kycStatus.data && kycStatus.data.kycDetail) {
-      const kycDetail = kycStatus.data.kycDetail;
-      
-      // Extract user info from KYC data
-      const firstName = kycDetail.firstName || '';
-      const lastName = kycDetail.lastName || '';
-      const country = kycDetail.country || '';
-      
-      // Store KYC information that might be useful for the withdrawal
-      setTempData(ctx, 'kycInfo', {
-        firstName,
-        lastName,
-        country
-      });
-      
-      await ctx.reply(
-        '🏦 *Bank Account Details*\n\n' +
-        `Account Holder: *${firstName} ${lastName}*\n` +
-        `Country: *${country.toUpperCase()}*\n\n` +
-        'Your withdrawal will be sent to your default bank account linked with your CopperX account.\n\n' +
-        '⚠️ *Note:* In a production environment, you would be able to select from your linked bank accounts.',
-        {
-          parse_mode: 'Markdown',
-        },
-      );
-    } else {
-      await ctx.reply(
-        '🏦 *Bank Account*\n\n' +
-        'Your withdrawal will be sent to your default bank account linked with your CopperX account.\n\n' +
-        '⚠️ *Note:* In a production environment, you would be able to select from your linked bank accounts.',
-        {
-          parse_mode: 'Markdown',
-        },
-      );
-    }
-    
-    // Set a placeholder bank account ID
-    setTempData(ctx, 'bankAccountId', 'default_bank_account_id');
-    
-    // Try to get fee estimate
+    // Fetch bank accounts
     try {
-      const networkValue = getTempData(ctx, 'network') as string;
-      const tokenValue = getTempData(ctx, 'token') as string;
-      const withdrawAmount = getTempData(ctx, 'amount') as string;
-      const kycInfo = getTempData(ctx, 'kycInfo');
-      const country = kycInfo?.country || '';
-      
-      // Show loading message while calculating fees
+      // Show loading message
       const loadingMsg = await ctx.reply(
-        formatLoading('Calculating withdrawal fees...'),
+        formatLoading('Fetching your bank accounts...'),
         { parse_mode: 'Markdown' }
       );
       
-      // Get fee estimate for bank withdrawals - pass country code for INR conversion
-      const feeEstimate = await kycApi.getWithdrawalFeeEstimate(
-        authToken, 
-        withdrawAmount, 
-        tokenValue,
-        country
-      );
+      // Get user's bank accounts
+      const token = session.token as string;
+      const accounts = await transfersApi.getAccounts(token);
       
+      // Try to delete loading message
       try {
         await ctx.deleteMessage(loadingMsg.message_id);
       } catch (error) {
         console.warn('[WITHDRAW] Could not delete loading message:', error);
       }
       
-      // Store fee information
-      if (feeEstimate.success) {
-        setTempData(ctx, 'feeEstimate', feeEstimate.data);
-      } else if (feeEstimate.estimatedFees) {
-        setTempData(ctx, 'feeEstimate', feeEstimate.estimatedFees);
+      // Filter for verified bank accounts
+      const bankAccounts = accounts.data.filter(
+        acc => acc.type === 'bank_account' && acc.status === 'verified'
+      );
+      
+      if (bankAccounts.length === 0) {
+        await ctx.reply(
+          '❌ No verified bank accounts found. Please add and verify a bank account in the CopperX web app first.',
+          { parse_mode: 'Markdown' }
+        );
+        await ctx.reply('Return to main menu:', backButtonKeyboard());
+        
+        // Reset step
+        session.currentStep = undefined;
+        return;
       }
       
-      // Show confirmation with fee details
-      await showWithdrawalConfirmation(ctx);
+      // Store bank accounts
+      setTempData(ctx, 'accounts', bankAccounts);
+      
+      // Display bank account options
+      let message = '🏦 *Select Bank Account*\n\nPlease enter the number of the bank account you want to use:\n\n';
+      
+      bankAccounts.forEach((account, index) => {
+        const bankName = account.bankAccount?.bankName || 'Bank';
+        const lastFour = account.bankAccount?.bankAccountNumber?.slice(-4) || 'xxxx';
+        message += `${index + 1}. ${bankName} (****${lastFour})\n`;
+      });
+      
+      await ctx.reply(message, {
+        parse_mode: 'Markdown',
+      });
+      
+      // Update step
+      session.currentStep = 'withdraw_bank_account';
     } catch (error) {
-      console.error('Error calculating fees:', error);
-      // Even if fee calculation fails, proceed with basic confirmation
-      await showWithdrawalConfirmation(ctx);
+      console.error('Error fetching bank accounts:', error);
+      await ctx.reply(
+        `❌ Failed to fetch bank accounts: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
+      );
+      session.currentStep = undefined;
+      await ctx.reply('Return to main menu:', backButtonKeyboard());
     }
     
-    // Update step
-    session.currentStep = 'withdraw_confirm';
+    return;
+  }
+  
+  // Handle bank account selection
+  if (session.currentStep === 'withdraw_bank_account') {
+    const accounts = getTempData(ctx, 'accounts') as any[];
+    
+    // Validate bank account selection
+    const accountIndex = parseInt(text, 10) - 1;
+    if (isNaN(accountIndex) || accountIndex < 0 || accountIndex >= accounts.length) {
+      await ctx.reply(`❌ Invalid selection. Please enter a number between 1 and ${accounts.length}:`);
+      return;
+    }
+    
+    const selectedAccount = accounts[accountIndex];
+    
+    // Store selected account
+    setTempData(ctx, 'bankAccount', selectedAccount);
+    
+    // Get other withdrawal details
+    const amount = getTempData(ctx, 'amount') as string;
+    const token = getTempData(ctx, 'token') as string;
+    
+    try {
+      // Show loading message
+      const loadingMsg = await ctx.reply(
+        formatLoading('Fetching withdrawal quote...'),
+        { parse_mode: 'Markdown' }
+      );
+      
+      // Prepare the quote request
+      const quoteData = {
+        amount: amount, // Will be formatted inside the API function
+        currency: token,
+        destinationCountry: selectedAccount.country || 'IN', // Default to India if missing
+        onlyRemittance: true,
+        preferredBankAccountId: selectedAccount.id,
+        sourceCountry: 'none',
+      };
+      
+      console.log(`[WITHDRAW] Requesting offramp quote with data:`, {
+        ...quoteData,
+        amount: Number(amount).toFixed(2), // Log readable amount
+        accountId: selectedAccount.id.slice(0, 8) + '...' // Truncate for logging
+      });
+      
+      // Get the quote
+      const quote = await transfersApi.getBankWithdrawalQuote(session.token as string, quoteData);
+      
+      // Delete loading message
+      try {
+        await ctx.deleteMessage(loadingMsg.message_id);
+      } catch (error) {
+        console.warn('[WITHDRAW] Could not delete loading message:', error);
+      }
+      
+      // Parse quote payload to display details
+      const quotePayload = JSON.parse(quote.quotePayload);
+      const cryptoAmount = parseInt(quotePayload.amount) / 1e8;
+      const localAmount = parseInt(quotePayload.toAmount) / 1e8;
+      const fee = parseInt(quotePayload.totalFee) / 1e8;
+      const exchangeRate = parseFloat(quotePayload.rate);
+      const currency = quotePayload.toCurrency || 'INR';
+      
+      // Store the quote in session for confirmation
+      setTempData(ctx, 'withdrawQuote', {
+        signature: quote.quoteSignature,
+        payload: quote.quotePayload,
+        amount: cryptoAmount,
+        localAmount: localAmount,
+        fee: fee,
+        rate: exchangeRate,
+        currency: currency
+      });
+      
+      // Calculate fee breakdown based on fixed and percentage components
+      const fixedFee = 2.00; // Fixed cost per transaction in USD
+      const percentageFee = (cryptoAmount * 0.015).toFixed(2); // 1.5% of withdrawal amount
+      
+      // Display quote details with better formatting
+      const bankDetails = selectedAccount.bankAccount;
+      const message = `🏦 *Bank Withdrawal Details*\n\n` +
+        `Withdraw: *${cryptoAmount.toFixed(2)} ${token}*\n` +
+        `You'll receive: *${localAmount.toFixed(2)} ${currency}*\n` +
+        `Exchange rate: 1 ${token} ≈ ${exchangeRate.toFixed(2)} ${currency}\n\n` +
+        `*Fee Breakdown:*\n` +
+        `Fixed cost per transaction: USD ${fixedFee.toFixed(2)}\n` +
+        `Payout Fee (1.5%): USD ${percentageFee}\n` +
+        `[Learn more about fees](https://support.copperx.io/en/)\n\n` +
+        `Arrival: ${quote.arrivalTimeMessage || '1-3 business days'}\n\n` +
+        `Bank account: ${bankDetails.bankName} (****${bankDetails.bankAccountNumber.slice(-4)})\n\n` +
+        `Do you want to proceed with this withdrawal?`;
+        
+      await ctx.reply(message, {
+        parse_mode: 'Markdown',
+        link_preview_options: {
+          is_disabled: true,
+        },
+        ...confirmationKeyboard('withdraw_confirm', 'withdraw_cancel')
+      });
+      
+      // Update step
+      session.currentStep = 'withdraw_confirm';
+    } catch (error) {
+      console.error('Error getting withdrawal quote:', error);
+      await ctx.reply(
+        `❌ Failed to get withdrawal quote: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
+      );
+      session.currentStep = undefined;
+      clearTempData(ctx); // Clear temp data on error
+      await ctx.reply('Return to main menu:', backButtonKeyboard());
+    }
     return;
   }
   
   return next();
 });
 
-// Helper function to show withdrawal confirmation with fees
-async function showWithdrawalConfirmation(ctx) {
-  const networkValue = getTempData(ctx, 'network') as string;
-  const tokenValue = getTempData(ctx, 'token') as string;
-  const withdrawAmount = getTempData(ctx, 'amount') as string;
-  const bankAccountId = getTempData(ctx, 'bankAccountId') as string;
-  const feeEstimateData = getTempData(ctx, 'feeEstimate');
-  const kycInfo = getTempData(ctx, 'kycInfo');
-  
-  // Check if user is from India
-  const isIndianUser = kycInfo && (kycInfo.country.toLowerCase() === 'ind' || kycInfo.country.toLowerCase() === 'india');
-  
-  console.log("[WITHDRAW] Fee estimate data for confirmation:", JSON.stringify(feeEstimateData, null, 2));
-  
-  // Extract fee details - handle both direct structure and nested structure
-  const feeEstimate = feeEstimateData?.estimatedFees || feeEstimateData;
-  
-  let message = '✅ *Confirm Withdrawal*\n\n';
-  
-  message += `*Type:* Bank Withdrawal\n`;
-  message += `*Network:* ${formatNetworkForDisplay(networkValue)}\n`;
-  message += `*Token:* ${tokenValue}\n`;
-  message += `*Amount:* ${withdrawAmount} ${tokenValue}\n`;
-  
-  // Add account holder information if available
-  if (kycInfo) {
-    message += `*Account Holder:* ${kycInfo.firstName} ${kycInfo.lastName}\n`;
-    message += `*Country:* ${kycInfo.country.toUpperCase()}\n`;
-  }
-  
-  message += `*Bank Account:* Default Account\n\n`;
-  
-  // Add fee details section
-  message += '💰 *Fee Details:*\n';
-  
-  if (feeEstimate) {
-    // Add exchange rate if available
-    if (feeEstimate.usdRate) {
-      message += `*Exchange Rate:* ${feeEstimate.usdRate}\n`;
-    }
-    
-    // Add INR rate for Indian users
-    if (isIndianUser && feeEstimate.inrInfo && feeEstimate.inrInfo.inrRate) {
-      message += `*INR Exchange Rate:* ${feeEstimate.inrInfo.inrRate}\n`;
-    }
-    
-    // Fixed fee
-    if (feeEstimate.fixedFee) {
-      message += `*Fixed Fee:* ${feeEstimate.fixedFee}\n`;
-    } else {
-      message += `*Fixed Fee:* $2.00\n`;
-    }
-    
-    // Processing fee
-    if (feeEstimate.processingFee) {
-      message += `*Processing Fee (${feeEstimate.percentage || '1.5'}%):* ${feeEstimate.processingFee}\n`;
-    } else {
-      const procFee = (parseFloat(withdrawAmount) * 0.015).toFixed(2);
-      message += `*Processing Fee (1.5%):* $${procFee}\n`;
-    }
-    
-    // Total fee
-    if (feeEstimate.totalFee) {
-      message += `*Total Fee:* ${feeEstimate.totalFee}\n\n`;
-    } else {
-      const totalFee = (2 + parseFloat(withdrawAmount) * 0.015).toFixed(2);
-      message += `*Total Fee:* $${totalFee}\n\n`;
-    }
-    
-    // You will receive section
-    message += `*You will receive:*\n`;
-    
-    if (feeEstimate.estimatedReceiveAmount) {
-      message += `${feeEstimate.estimatedReceiveAmount}\n`;
-    } else {
-      const receiveAmount = (parseFloat(withdrawAmount) - (2 + parseFloat(withdrawAmount) * 0.015)).toFixed(6);
-      message += `${receiveAmount} ${tokenValue}\n`;
-    }
-    
-    // Add INR equivalent for Indian users
-    if (isIndianUser && feeEstimate.inrInfo && feeEstimate.inrInfo.receiveAmountInr) {
-      message += `*₹${feeEstimate.inrInfo.receiveAmountInr}* (deposited to your bank account)\n`;
-    } else if (isIndianUser) {
-      const approxInrRate = 83; // Approximate USD to INR rate
-      const receiveAmount = parseFloat(withdrawAmount) - (2 + parseFloat(withdrawAmount) * 0.015);
-      const receiveAmountInr = (receiveAmount * approxInrRate).toFixed(2);
-      message += `*₹${receiveAmountInr}* (approximate, deposited to your bank account)\n`;
-    }
-  } else {
-    // Fallback fee calculation if no fee estimate is available
-    const fixedFee = 2.00;
-    const processingFeePercentage = 1.5;
-    const processingFee = (parseFloat(withdrawAmount) * processingFeePercentage / 100).toFixed(2);
-    const totalFee = (fixedFee + parseFloat(processingFee)).toFixed(2);
-    const receiveAmount = (parseFloat(withdrawAmount) - parseFloat(totalFee)).toFixed(6);
-    
-    message += `*Fixed Fee:* $${fixedFee.toFixed(2)}\n`;
-    message += `*Processing Fee (${processingFeePercentage}%):* $${processingFee}\n`;
-    message += `*Total Fee:* $${totalFee}\n\n`;
-    
-    message += `*You will receive:*\n`;
-    message += `${receiveAmount} ${tokenValue}\n`;
-    
-    // Add approximate INR value for Indian users
-    if (isIndianUser) {
-      const approxInrRate = 83;
-      const receiveAmountInr = (parseFloat(receiveAmount) * approxInrRate).toFixed(2);
-      message += `*₹${receiveAmountInr}* (approximate, deposited to your bank account)\n`;
-    }
-  }
-  
-  message += '\n⚠️ *Note:* Bank withdrawals may take 1-3 business days to process.\n\n';
-  message += 'Please confirm this withdrawal:';
-  
-  await ctx.reply(message, {
-    parse_mode: 'Markdown',
-    ...confirmationKeyboard('withdraw_confirm', 'withdraw_cancel'),
-  });
-}
-
 // Handle withdraw confirmation
 const withdrawConfirmAction = Composer.action('withdraw_confirm', authMiddleware(), async (ctx) => {
   await ctx.answerCbQuery();
   
-  const networkValue = getTempData(ctx as any, 'network') as string;
-  const tokenValue = getTempData(ctx as any, 'token') as string;
-  const withdrawAmount = getTempData(ctx as any, 'amount') as string;
-  const bankAccountId = getTempData(ctx as any, 'bankAccountId') as string;
-  const feeEstimateData = getTempData(ctx as any, 'feeEstimate');
-  const kycInfo = getTempData(ctx as any, 'kycInfo');
-  
-  // Extract fee details - handle both direct structure and nested structure
-  const feeEstimate = feeEstimateData?.estimatedFees || feeEstimateData;
-  
-  // Check if user is from India
-  const isIndianUser = kycInfo && (kycInfo.country.toLowerCase() === 'ind' || kycInfo.country.toLowerCase() === 'india');
+  const withdrawQuote = getTempData(ctx as any, 'withdrawQuote');
+  if (!withdrawQuote) {
+    await ctx.reply('❌ Withdrawal quote expired or not found. Please start the withdrawal process again.');
+    getSession(ctx).currentStep = undefined;
+    clearTempData(ctx as any);
+    await ctx.reply('Return to main menu:', backButtonKeyboard());
+    return;
+  }
   
   try {
-    const loadingMsg = await ctx.reply('🔄 Processing your withdrawal...');
+    const loadingMsg = await ctx.reply('🔄 Processing your bank withdrawal...');
     
     // Get token from session
     const authToken = getSession(ctx).token as string;
     
-    // Prepare withdrawal payload with all required fields
-    const withdrawalPayload = {
-      amount: withdrawAmount,
-      currency: tokenValue,
-      network: networkValue,
-      bankAccountId: bankAccountId,
-      // Required fields for the API
-      purposeCode: 'self' as const,
-      sourceOfFunds: 'salary' as const,
-      recipientRelationship: 'self' as const,
-      // If we have KYC info, include it in customer data
-      customerData: kycInfo ? {
-        name: `${kycInfo.firstName} ${kycInfo.lastName}`.trim(),
-        country: kycInfo.country,
-      } : undefined,
-      // Add optional note
-      note: `Bank withdrawal of ${withdrawAmount} ${tokenValue} via CopperX Bot`,
+    // Prepare withdrawal data with quote info
+    const withdrawalData = {
+      purposeCode: 'self',
+      quotePayload: withdrawQuote.payload,
+      quoteSignature: withdrawQuote.signature,
     };
     
-    console.log('[WITHDRAW] Initiating bank withdrawal with payload:', withdrawalPayload);
+    console.log('[WITHDRAW] Executing bank transfer with signature:', 
+      withdrawQuote.signature.slice(0, 15) + '...');
     
-    // Make the actual API call
-    const response = await transfersApi.withdrawToBank(
+    // Execute the transfer using the offramp API
+    const result = await transfersApi.processBankWithdrawal(
       authToken,
-      withdrawalPayload
+      withdrawalData
     );
     
     // Delete loading message
@@ -521,86 +472,35 @@ const withdrawConfirmAction = Composer.action('withdraw_confirm', authMiddleware
       console.warn('[WITHDRAW] Could not delete loading message:', error);
     }
     
-    // Extract transaction ID from response
-    const transactionId = response && response.data ? response.data.id || 'pending' : 'pending';
+    // Clear temp data and reset step
+    getSession(ctx).currentStep = undefined;
+    clearTempData(ctx as any);
     
-    // Construct a success message with fee information and transaction details
-    let receiveAmount = withdrawAmount;
-    let usdEquivalent = '';
-    let inrEquivalent = '';
+    // Get values for the success message
+    const token = getTempData(ctx as any, 'token') || withdrawQuote.currency || 'USDC';
+    const networkValue = getTempData(ctx as any, 'network') || result.network || 'ethereum';
     
-    if (feeEstimate) {
-      // Extract the receive amount from fee estimate
-      if (typeof feeEstimate.estimatedReceiveAmount === 'string') {
-        // Try to extract just the number part before the currency
-        const match = feeEstimate.estimatedReceiveAmount.match(/^([\d.]+)/);
-        if (match && match[1]) {
-          receiveAmount = match[1];
-        } else {
-          // Fallback calculation if we can't extract
-          const totalFeeAmount = feeEstimate.totalFee ? 
-            parseFloat(feeEstimate.totalFee.match(/\$([\d.]+)/)?.[1] || '0') : 
-            (2 + parseFloat(withdrawAmount) * 0.015);
-          
-          receiveAmount = (parseFloat(withdrawAmount) - totalFeeAmount).toFixed(6);
-        }
-      }
-      
-      // Extract USD equivalent if available
-      if (feeEstimate.usdRate) {
-        const rate = feeEstimate.usdRate.split('=')[1]?.trim();
-        if (rate) {
-          const usdValue = parseFloat(receiveAmount) * parseFloat(rate.replace('$', ''));
-          usdEquivalent = ` (≈ $${usdValue.toFixed(2)})`;
-        }
-      }
-      
-      // Extract INR equivalent for Indian users
-      if (isIndianUser && feeEstimate.inrInfo && feeEstimate.inrInfo.receiveAmountInr) {
-        inrEquivalent = `\n*Amount in INR:* ₹${feeEstimate.inrInfo.receiveAmountInr} will be deposited to your bank account`;
-      }
-    } else {
-      // Calculate receive amount if fee estimate is not available
-      const totalFee = 2 + parseFloat(withdrawAmount) * 0.015;
-      receiveAmount = (parseFloat(withdrawAmount) - totalFee).toFixed(6);
-    }
+    // Calculate fee breakdown again for receipt
+    const fixedFee = 2.00;
+    const percentageFee = (withdrawQuote.amount * 0.015).toFixed(2);
     
-    // If INR equivalent isn't available but user is from India, calculate it approximately
-    if (isIndianUser && !inrEquivalent) {
-      const approxInrRate = 83; // Approximate USD to INR rate
-      const inrValue = (parseFloat(receiveAmount) * approxInrRate).toFixed(2);
-      inrEquivalent = `\n*Amount in INR:* ₹${inrValue} (approximate) will be deposited to your bank account`;
-    }
-    
-    // Include fee details in success message
-    const feeDetails = feeEstimate?.totalFee ? 
-      `*Fees:* ${feeEstimate.totalFee}\n` : 
-      `*Fees:* $${(2 + parseFloat(withdrawAmount) * 0.015).toFixed(2)}\n`;
-    
-    // Send success message with transaction details
+    // Create success message
     await ctx.reply(
       '✅ *Withdrawal Request Submitted*\n\n' +
-      'Your withdrawal request has been submitted successfully.\n\n' +
+      'Your bank withdrawal request has been submitted successfully.\n\n' +
       `*Transaction Details:*\n` +
-      `*Transaction ID:* ${transactionId}\n` +
-      `*Amount:* ${withdrawAmount} ${tokenValue}\n` +
+      `*Transaction ID:* ${result.id}\n` +
+      `*Amount:* ${withdrawQuote.amount.toFixed(2)} ${token}\n` +
+      `*You'll receive:* ${withdrawQuote.localAmount.toFixed(2)} ${withdrawQuote.currency}\n` +
       `*Network:* ${formatNetworkForDisplay(networkValue)}\n` +
-      `*Status:* ${response && response.data ? response.data.status || 'Pending' : 'Pending'}\n` +
-      feeDetails +
-      `*You will receive:* ${receiveAmount} ${tokenValue}${usdEquivalent}` +
-      inrEquivalent + '\n\n' +
+      `*Status:* ${result.status || 'Processing'}\n` +
+      `*Fees:* Fixed USD ${fixedFee.toFixed(2)} + ${percentageFee} USD (1.5%)\n\n` +
       'Bank withdrawals typically take 1-3 business days to process.\n\n' +
       '*Questions about your withdrawal?* Contact support: https://t.me/copperxcommunity/2183',
       {
         parse_mode: 'Markdown',
       },
     );
-    
-    // Clear temp data
-    clearTempData(ctx as any);
-    
-    // Reset step
-    getSession(ctx).currentStep = undefined;
     
     await ctx.reply('Return to main menu:', backButtonKeyboard());
   } catch (error) {
@@ -623,8 +523,9 @@ const withdrawConfirmAction = Composer.action('withdraw_confirm', authMiddleware
       { parse_mode: 'Markdown' }
     );
     
-    // Reset step
+    // Reset step and clear data
     getSession(ctx).currentStep = undefined;
+    clearTempData(ctx as any);
     
     await ctx.reply('Return to main menu:', backButtonKeyboard());
   }

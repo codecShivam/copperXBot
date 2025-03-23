@@ -1,5 +1,6 @@
 import { Composer, Markup } from 'telegraf';
 import { message } from 'telegraf/filters';
+import { v4 as uuidv4 } from 'uuid';
 import { BotContext } from '../../types';
 import { walletApi, transfersApi } from '../../api';
 import { authMiddleware } from '../middleware/auth';
@@ -8,7 +9,7 @@ import { getSession, clearTempData, setTempData, getTempData } from '../../utils
 import { formatAmount } from '../../utils/format';
 import { formatNetworkForDisplay } from '../../utils/networks';
 import { validateWalletAddress, validateEmailFormat, checkEmailTypos } from '../../utils/validation';
-import { formatLoading } from '../../constants/themes/default';
+import { formatLoading, formatHeader, ICON } from '../../constants';
 
 // Simple fee estimation function for withdrawals
 async function estimateFees(authToken: string, amount: string, currency: string, transferType: string): Promise<{
@@ -926,6 +927,443 @@ const sendCancelAction = Composer.action('send_cancel', authMiddleware(), async 
   await ctx.reply('Return to main menu:', backButtonKeyboard());
 });
 
+// Add batch payment interfaces
+interface BatchPayee {
+  email: string;
+  amount: string;
+}
+
+interface BatchState {
+  payees: BatchPayee[];
+  step: string;
+  network: string;
+  currency: string;
+}
+
+// Handle send to batch action
+const sendBatchAction = Composer.action('send_batch', authMiddleware(), async (ctx) => {
+  await ctx.answerCbQuery();
+  await initiateBatchPayment(ctx);
+});
+
+// Initiate batch payment process
+async function initiateBatchPayment(ctx) {
+  // Clear any previous session data
+  clearTempData(ctx);
+  
+  // Initialize batch state
+  setTempData(ctx, 'batchState', {
+    payees: [],
+    step: 'network',
+    currency: 'USDC', // Default to USDC
+    network: ''
+  });
+  
+  try {
+    // Fetch user's available networks
+    const balances = await walletApi.getBalances(getSession(ctx).token);
+    console.log(`[BATCH] Fetched ${balances.length} wallets with balances`);
+    
+    if (!balances || balances.length === 0) {
+      await ctx.reply(
+        `${ICON.error} You don't have any tokens in your wallets. Please deposit funds first.`
+      );
+      await ctx.reply('Return to main menu:', backButtonKeyboard());
+      return;
+    }
+    
+    // Get unique networks
+    const networks = [...new Set(balances.map(balance => balance.network))];
+    
+    // Store networks in session
+    setTempData(ctx, 'networks', networks);
+    
+    // Show batch payment introduction
+    await ctx.reply(
+      `${formatHeader('Batch Payment')} ${ICON.send}\n\n` +
+      'Send USDC to multiple recipients in a single batch transaction.\n\n' +
+      'First, please select the network you want to use:',
+      { parse_mode: 'Markdown' }
+    );
+    
+    // Show network options
+    let message = `${ICON.network} *Select Network*\n\nPlease enter the number of the network you want to use:\n\n`;
+    
+    networks.forEach((network, index) => {
+      message += `${index + 1}. ${formatNetworkForDisplay(network)}\n`;
+    });
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+    
+    // Set current step
+    getSession(ctx).currentStep = 'batch_network';
+  } catch (error) {
+    console.error('[BATCH] Error initializing batch payment:', error);
+    await ctx.reply(
+      `${ICON.error} Failed to initialize batch payment: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`
+    );
+    await ctx.reply('Return to main menu:', backButtonKeyboard());
+  }
+}
+
+// Add to the existing message handler to process batch payment inputs
+const batchFlowHandler = async (ctx, next) => {
+  // Skip if not in batch flow
+  const session = getSession(ctx);
+  if (!session?.currentStep?.startsWith('batch_')) {
+    return next();
+  }
+  
+  const text = ctx.message.text.trim();
+  
+  // Network selection step
+  if (session.currentStep === 'batch_network') {
+    const networks = getTempData(ctx, 'networks') as string[];
+    
+    // Validate network selection
+    const networkIndex = parseInt(text, 10) - 1;
+    if (isNaN(networkIndex) || networkIndex < 0 || networkIndex >= networks.length) {
+      await ctx.reply(`${ICON.error} Invalid selection. Please enter a number between 1 and ${networks.length}:`);
+      return;
+    }
+    
+    const selectedNetwork = networks[networkIndex];
+    
+    // Update batch state
+    const batchState = getTempData(ctx, 'batchState') as BatchState;
+    batchState.network = selectedNetwork;
+    setTempData(ctx, 'batchState', batchState);
+    
+    // Explain batch payment instructions
+    await ctx.reply(
+      `${formatHeader('Batch Payment Setup')} ${ICON.send}\n\n` +
+      `Network: ${formatNetworkForDisplay(selectedNetwork)}\n` +
+      `Currency: USDC\n\n` +
+      'Add recipients by entering them one per line in this format:\n\n' +
+      '`email@example.com 10.5`\n\n' +
+      '(Email address followed by amount in USDC)\n\n' +
+      '*Commands:*\n' +
+      '`DONE` - Finish adding recipients and proceed\n' +
+      '`LIST` - Show current batch recipients\n' +
+      '`CLEAR` - Remove all recipients\n' +
+      '`CANCEL` - Cancel the batch payment',
+      { parse_mode: 'Markdown' }
+    );
+    
+    // Update step
+    session.currentStep = 'batch_add_recipients';
+    return;
+  }
+  
+  // Add recipients step
+  if (session.currentStep === 'batch_add_recipients') {
+    const upperText = text.toUpperCase();
+    const batchState = getTempData(ctx, 'batchState') as BatchState;
+    
+    // Handle commands
+    if (upperText === 'DONE') {
+      if (batchState.payees.length === 0) {
+        await ctx.reply(`${ICON.warning} No recipients added. Please add at least one recipient or type CANCEL to abort.`);
+        return;
+      }
+      
+      // Show confirmation
+      await showBatchConfirmation(ctx);
+      return;
+    } else if (upperText === 'LIST') {
+      await listBatchRecipients(ctx);
+      return;
+    } else if (upperText === 'CLEAR') {
+      batchState.payees = [];
+      setTempData(ctx, 'batchState', batchState);
+      await ctx.reply(`${ICON.success} All recipients cleared. You can now add new recipients.`);
+      return;
+    } else if (upperText === 'CANCEL') {
+      clearTempData(ctx);
+      session.currentStep = undefined;
+      await ctx.reply(`${ICON.cancel} Batch payment cancelled.`);
+      await ctx.reply('Return to main menu:', backButtonKeyboard());
+      return;
+    }
+    
+    // Parse recipient info (email and amount)
+    const parts = text.trim().split(/\s+/);
+    if (parts.length < 2) {
+      await ctx.reply(`${ICON.error} Invalid format. Please use: email@example.com 10.5`);
+      return;
+    }
+    
+    // Extract email and amount
+    const email = parts[0].trim();
+    // Join all remaining parts and parse as amount (handles extra spaces)
+    const amountText = parts.slice(1).join('').replace(',', '.').trim();
+    const amount = parseFloat(amountText);
+    
+    // Validate email format
+    if (!validateEmailFormat(email)) {
+      await ctx.reply(`${ICON.error} Invalid email format. Please enter a valid email address.`);
+      return;
+    }
+    
+    // Check for typos in email
+    const typoCheck = checkEmailTypos(email);
+    if (typoCheck.hasTypo && typoCheck.suggestion) {
+      await ctx.reply(
+        `${ICON.warning} Did you mean *${typoCheck.suggestion}*? If so, please re-enter with the correct email.`,
+        { parse_mode: 'Markdown' }
+      );
+      // We'll continue anyway as the user might have a valid non-standard email
+    }
+    
+    // Validate amount
+    if (isNaN(amount) || amount <= 0) {
+      await ctx.reply(`${ICON.error} Invalid amount. Please enter a positive number.`);
+      return;
+    }
+    
+    // Check for duplicate email
+    const existingIndex = batchState.payees.findIndex(p => p.email.toLowerCase() === email.toLowerCase());
+    if (existingIndex >= 0) {
+      await ctx.reply(
+        `${ICON.warning} This email is already in your batch. Do you want to update the amount? Reply:\n` +
+        `YES - Update the amount\n` +
+        `NO - Keep the existing entry`,
+        Markup.forceReply()
+      );
+      
+      // Store the pending update details
+      setTempData(ctx, 'pendingUpdate', {
+        email,
+        amount: amount.toString(),
+        index: existingIndex
+      });
+      
+      // Set new step for handling the update
+      session.currentStep = 'batch_confirm_update';
+      return;
+    }
+    
+    // Add new recipient to batch
+    batchState.payees.push({
+      email,
+      amount: amount.toString()
+    });
+    
+    setTempData(ctx, 'batchState', batchState);
+    
+    await ctx.reply(
+      `${ICON.success} Added: ${email} - ${amount.toFixed(2)} USDC\n\n` +
+      `Total recipients: ${batchState.payees.length}\n\n` +
+      'Continue adding recipients or type DONE when finished.'
+    );
+    
+    return;
+  }
+  
+  // Handle pending update response
+  if (session.currentStep === 'batch_confirm_update') {
+    const response = text.trim().toUpperCase();
+    const pendingUpdate = getTempData(ctx, 'pendingUpdate') as any;
+    const batchState = getTempData(ctx, 'batchState') as BatchState;
+    
+    if (response === 'YES') {
+      // Update the existing entry
+      batchState.payees[pendingUpdate.index].amount = pendingUpdate.amount;
+      setTempData(ctx, 'batchState', batchState);
+      
+      await ctx.reply(
+        `${ICON.success} Updated: ${pendingUpdate.email} - ${parseFloat(pendingUpdate.amount).toFixed(2)} USDC\n\n` +
+        'Continue adding recipients or type DONE when finished.'
+      );
+    } else if (response === 'NO') {
+      await ctx.reply(`${ICON.info} Kept existing entry unchanged.`);
+    } else {
+      await ctx.reply(`${ICON.error} Invalid response. The entry was not updated.`);
+    }
+    
+    // Clear pending update and revert to add recipients step
+    setTempData(ctx, 'pendingUpdate', null);
+    session.currentStep = 'batch_add_recipients';
+    return;
+  }
+  
+  return next();
+};
+
+// Helper functions for batch payments
+async function listBatchRecipients(ctx) {
+  const batchState = getTempData(ctx, 'batchState') as BatchState;
+  
+  if (batchState.payees.length === 0) {
+    await ctx.reply(`${ICON.warning} No recipients added yet.`);
+    return;
+  }
+  
+  let totalAmount = 0;
+  let message = `${formatHeader('Batch Recipients')} ${ICON.info}\n\n`;
+  
+  batchState.payees.forEach((payee, index) => {
+    const amount = parseFloat(payee.amount);
+    totalAmount += amount;
+    message += `${index + 1}. ${payee.email} - ${amount.toFixed(2)} USDC\n`;
+  });
+  
+  message += `\n*Total Recipients:* ${batchState.payees.length}`;
+  message += `\n*Total Amount:* ${totalAmount.toFixed(2)} USDC`;
+  
+  await ctx.reply(message, { parse_mode: 'Markdown' });
+}
+
+async function showBatchConfirmation(ctx) {
+  const batchState = getTempData(ctx, 'batchState') as BatchState;
+  
+  let totalAmount = 0;
+  let message = `${formatHeader('Confirm Batch Payment')} ${ICON.confirm}\n\n`;
+  
+  message += `*Network:* ${formatNetworkForDisplay(batchState.network)}\n`;
+  message += `*Currency:* USDC\n\n`;
+  message += '*Recipients:*\n';
+  
+  batchState.payees.forEach((payee, index) => {
+    const amount = parseFloat(payee.amount);
+    totalAmount += amount;
+    message += `${index + 1}. ${payee.email} - ${amount.toFixed(2)} USDC\n`;
+  });
+  
+  message += `\n*Total Recipients:* ${batchState.payees.length}`;
+  message += `\n*Total Amount:* ${totalAmount.toFixed(2)} USDC`;
+  
+  message += '\n\nPlease confirm this batch payment:';
+  
+  await ctx.reply(message, {
+    parse_mode: 'Markdown',
+    ...confirmationKeyboard('batch_confirm', 'batch_cancel')
+  });
+  
+  // Update step
+  getSession(ctx).currentStep = 'batch_confirm';
+}
+
+// Handle batch confirmation action
+const batchConfirmAction = Composer.action('batch_confirm', authMiddleware(), async (ctx) => {
+  await ctx.answerCbQuery();
+  
+  const batchState = getTempData(ctx, 'batchState') as BatchState;
+  const session = getSession(ctx);
+  
+  if (batchState.payees.length === 0) {
+    await ctx.reply(
+      `${ICON.warning} *No Recipients Added*\n\nNo recipients have been added. Please try again.`,
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback(`${ICON.send} Start Batch Payment`, 'send_batch')],
+          [Markup.button.callback(`${ICON.back} Back to Menu`, 'main_menu')]
+        ])
+      }
+    );
+    return;
+  }
+  
+  try {
+    await ctx.reply(`${ICON.loading} Processing batch payment...`);
+    
+    // Prepare batch payment requests
+    const batchRequests = batchState.payees.map(payee => ({
+      email: payee.email,
+      amount: payee.amount,
+      currency: 'USDC',
+      purposeCode: 'self',
+      // Add a unique identifier to each transaction for tracing
+      note: `Batch payment via Telegram (${uuidv4().substring(0, 8)})`
+    }));
+    
+    // Send batch payment request to API
+    const response = await transfersApi.sendBatchPayments(session.token, batchRequests);
+    
+    // Format success message
+    let message = `${formatHeader('Batch Payment Successful')} ${ICON.success}\n\n`;
+    
+    // Check response format and adapt accordingly
+    if (response.data && Array.isArray(response.data.transfers)) {
+      // Process individual transfer statuses if available
+      response.data.transfers.forEach((transfer, index) => {
+        const payee = batchState.payees[index];
+        const amount = parseFloat(payee.amount).toFixed(2);
+        
+        message += `${ICON.email} *${payee.email}*\n`;
+        message += `   Amount: ${amount} USDC\n`;
+        message += `   Status: ${transfer.status || 'Processed'}\n`;
+        message += `   ID: \`${transfer.id || 'N/A'}\`\n\n`;
+      });
+    } else {
+      // Fallback to simpler success message
+      message += `Successfully sent payments to ${batchState.payees.length} recipients.\n\n`;
+      message += `Total amount: ${batchState.payees.reduce((sum, p) => sum + parseFloat(p.amount), 0).toFixed(2)} USDC`;
+    }
+    
+    // Clear batch state after successful processing
+    clearTempData(ctx);
+    session.currentStep = undefined;
+    
+    // Show success message with options
+    await ctx.replyWithMarkdown(
+      message,
+      Markup.inlineKeyboard([
+        [Markup.button.callback(`${ICON.history} View History`, 'history')],
+        [Markup.button.callback(`${ICON.send} Send Another Batch`, 'send_batch')],
+        [Markup.button.callback(`${ICON.back} Back to Menu`, 'main_menu')]
+      ])
+    );
+  } catch (error) {
+    console.error('[BATCH] Error processing batch payment:', error);
+    
+    let errorMessage = 'Unknown error';
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
+    // Handle authentication errors
+    if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
+      session.authenticated = false;
+      session.token = undefined;
+      session.currentStep = undefined;
+      
+      await ctx.reply(
+        `${ICON.error} Your session has expired. Please log in again.`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback(`${ICON.key} Login`, 'login')]
+        ])
+      );
+      return;
+    }
+    
+    // Show error message with options to retry
+    await ctx.replyWithMarkdown(
+      `${ICON.error} *Batch Payment Failed*\n\n${errorMessage}\n\nPlease try again or contact support.`,
+      Markup.inlineKeyboard([
+        [Markup.button.callback(`${ICON.send} Try Again`, 'send_batch')],
+        [Markup.button.callback(`${ICON.back} Back to Menu`, 'main_menu')]
+      ])
+    );
+  }
+});
+
+// Handle batch cancellation action
+const batchCancelAction = Composer.action('batch_cancel', authMiddleware(), async (ctx) => {
+  await ctx.answerCbQuery();
+  
+  // Clear batch data
+  clearTempData(ctx);
+  
+  // Reset step
+  getSession(ctx).currentStep = undefined;
+  
+  await ctx.reply(`${ICON.cancel} Batch payment cancelled.`);
+  await ctx.reply('Return to main menu:', backButtonKeyboard());
+});
+
 // Add validation utilities
 function validateEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -941,4 +1379,10 @@ export default Composer.compose([
   confirmAmountAction,
   sendConfirmAction,
   sendCancelAction,
+  // Add batch payment handlers
+  sendBatchAction,
+  // Modify send flow to check for batch-related steps
+  Composer.on(message('text'), batchFlowHandler),
+  batchConfirmAction, 
+  batchCancelAction
 ]); 

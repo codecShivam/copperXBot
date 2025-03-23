@@ -64,6 +64,7 @@ export const sendMenuKeyboard = () => {
   return Markup.inlineKeyboard([
     [Markup.button.callback(`${ICON.email} Send to Email`, 'send_email')],
     [Markup.button.callback(`${ICON.wallet} Send to Wallet Address`, 'send_wallet')],
+    [Markup.button.callback(`${ICON.send} Batch Payment to Emails`, 'send_batch')],
     [Markup.button.callback(`${ICON.back} Main Menu`, 'main_menu')],
   ]);
 };
