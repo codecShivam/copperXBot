@@ -33,7 +33,7 @@ fi
 
 # Check container status
 echo -e "\n${YELLOW}Checking container status...${NC}"
-container_status=$(docker compose ps)
+container_status=$(docker-compose ps)
 echo "$container_status"
 
 if ! echo "$container_status" | grep -q "bot.*Up"; then
@@ -76,8 +76,8 @@ if [ -f ".env" ]; then
             
             if [[ "$restart_containers" =~ ^[Yy]$ ]]; then
                 echo -e "${BLUE}Restarting containers...${NC}"
-                docker compose down
-                docker compose up -d
+                docker-compose down
+                docker-compose up -d
                 echo -e "${GREEN}✓ Containers restarted${NC}"
             fi
         fi
@@ -130,26 +130,26 @@ fi
 
 # Test Redis connectivity
 echo -e "\n${YELLOW}Testing Redis connectivity...${NC}"
-if docker compose ps | grep -q "redis.*Up"; then
+if docker-compose ps | grep -q "redis.*Up"; then
     # Test Redis ping
-    redis_ping=$(docker compose exec redis redis-cli ping 2>&1)
+    redis_ping=$(docker-compose exec redis redis-cli ping 2>&1)
     if [[ "$redis_ping" == "PONG" ]]; then
         echo -e "${GREEN}✓ Redis responds to ping (no auth required)${NC}"
     else
         # Try with password if available
         if [ -f ".env" ] && grep -q "REDIS_PASSWORD" .env; then
             redis_password=$(grep "REDIS_PASSWORD" .env | cut -d '=' -f2)
-            redis_auth_ping=$(docker compose exec redis redis-cli -a "$redis_password" ping 2>&1)
+            redis_auth_ping=$(docker-compose exec redis redis-cli -a "$redis_password" ping 2>&1)
             
             if [[ "$redis_auth_ping" == "PONG" ]]; then
                 echo -e "${GREEN}✓ Redis responds after authentication${NC}"
                 
                 # Test if bot can connect to Redis
                 echo -e "\n${YELLOW}Testing if bot container can connect to Redis...${NC}"
-                if docker compose ps | grep -q "bot.*Up"; then
+                if docker-compose ps | grep -q "bot.*Up"; then
                     # Use netcat to test connection
-                    docker compose exec bot sh -c "apk add --no-cache netcat-openbsd > /dev/null 2>&1 || true"
-                    redis_connection=$(docker compose exec bot sh -c "nc -zv redis 6379" 2>&1)
+                    docker-compose exec bot sh -c "apk add --no-cache netcat-openbsd > /dev/null 2>&1 || true"
+                    redis_connection=$(docker-compose exec bot sh -c "nc -zv redis 6379" 2>&1)
                     
                     if [[ "$redis_connection" == *"open"* ]] || [[ "$redis_connection" == *"succeeded"* ]]; then
                         echo -e "${GREEN}✓ Bot container can connect to Redis container${NC}"
@@ -169,7 +169,7 @@ fi
 
 # Check logs for common errors
 echo -e "\n${YELLOW}Checking bot logs for common errors...${NC}"
-bot_logs=$(docker compose logs bot --tail 50 2>&1)
+bot_logs=$(docker-compose logs bot --tail 50 2>&1)
 
 if echo "$bot_logs" | grep -q "ECONNREFUSED 127.0.0.1:6379"; then
     echo -e "${RED}❌ Found error: Bot trying to connect to Redis on localhost (127.0.0.1)${NC}"
@@ -198,15 +198,15 @@ read -r repair_option
 case "$repair_option" in
     1)
         echo -e "${BLUE}Rebuilding and restarting containers...${NC}"
-        docker compose down
-        docker compose build --no-cache bot
-        docker compose up -d
+        docker-compose down
+        docker-compose build --no-cache bot
+        docker-compose up -d
         echo -e "${GREEN}✓ Containers rebuilt and restarted${NC}"
         ;;
     2)
         echo -e "${BLUE}Force recreating Redis container...${NC}"
-        docker compose rm -sf redis
-        docker compose up -d
+        docker-compose rm -sf redis
+        docker-compose up -d
         echo -e "${GREEN}✓ Redis container recreated${NC}"
         ;;
     3)
@@ -216,9 +216,9 @@ case "$repair_option" in
         
         if [[ "$confirm_reset" =~ ^[Yy]$ ]]; then
             echo -e "${BLUE}Resetting Redis data volume...${NC}"
-            docker compose down
+            docker-compose down
             docker volume rm copperxbot_redis-data || true
-            docker compose up -d
+            docker-compose up -d
             echo -e "${GREEN}✓ Redis data volume reset${NC}"
         fi
         ;;
