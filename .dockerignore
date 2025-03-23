@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+logs/
+dist/
+.vscode/
+.idea/
+*.md
+.bot.lock
+.bot.pid 

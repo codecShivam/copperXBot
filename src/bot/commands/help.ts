@@ -10,7 +10,7 @@ const helpCommand = Composer.command('help', async (ctx) => {
       `/start - Start the bot and show the main menu\n` +
       `/login - Authenticate with your Copperx account\n` +
       `/balance - Check your wallet balances\n` +
-      `/send - Send funds to an email or wallet\n` +
+      `/send - Send funds to an email, wallet, or multiple recipients\n` +
       `/withdraw - Withdraw funds to a bank account\n` +
       `/history - View your transaction history\n` +
       `/profile - View your account profile\n` +

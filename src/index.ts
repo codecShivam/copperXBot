@@ -1,5 +1,5 @@
-import { Telegraf, session } from 'telegraf';
-import { BotContext, SessionData } from './types';
+import { Telegraf } from 'telegraf';
+import { BotContext } from './types';
 import config from './config';
 import startCommand from './bot/commands/start';
 import helpCommand from './bot/commands/help';
@@ -10,9 +10,11 @@ import profileCommand from './bot/commands/profile';
 import historyCommand from './bot/commands/history';
 import sendCommand from './bot/commands/send';
 import withdrawCommand from './bot/commands/withdraw';
-import { mainMenuKeyboard, balanceMenuKeyboard } from './bot/keyboards';
+import { mainMenuKeyboard } from './bot/keyboards';
 import { checkRunningBot, registerBotProcess, setupGracefulShutdown } from './utils/lifecycle';
 import { setGlobalBot } from './services/notifications';
+import redisSession from './utils/redisSession';
+import { closeRedisConnection } from './utils/sessionStore';
 
 // Check if another bot instance is already running
 const runningPid = checkRunningBot();
@@ -34,10 +36,8 @@ const bot = new Telegraf<BotContext>(config.bot.token, {
 // Set the global bot instance for notifications
 setGlobalBot(bot);
 
-// Set up session middleware
-bot.use(session({
-  defaultSession: () => ({ authenticated: false }),
-}));
+// Set up Redis session middleware
+bot.use(redisSession());
 
 // Export the bot instance for other modules
 export { bot };
@@ -78,7 +78,7 @@ bot.action('help', async (ctx) => {
       `/start - Start the bot and show the main menu\n` +
       `/login - Authenticate with your Copperx account\n` +
       `/balance - Check your wallet balances\n` +
-      `/send - Send funds to an email or wallet\n` +
+      `/send - Send funds to an email, wallet, or multiple recipients\n` +
       `/withdraw - Withdraw funds to a bank account\n` +
       `/history - View your transaction history\n` +
       `/profile - View your account profile\n` +
@@ -117,9 +117,12 @@ const startBot = async () => {
     // Ensure we try to stop the bot if it's running
     try {
       bot.stop('ERROR');
+      // Close Redis connection
+      await closeRedisConnection();
     } catch (stopError) {
       console.error('Error stopping bot:', stopError);
     }
+    
     
     // Give time for connections to close properly
     console.log('Exiting in 2 seconds...');
@@ -128,5 +131,18 @@ const startBot = async () => {
     }, 2000);
   }
 };
+
+// Handle graceful shutdown for Redis connection
+process.once('SIGINT', async () => {
+  console.log('SIGINT signal received');
+  await closeRedisConnection();
+  bot.stop('SIGINT');
+});
+
+process.once('SIGTERM', async () => {
+  console.log('SIGTERM signal received');
+  await closeRedisConnection();
+  bot.stop('SIGTERM');
+});
 
 startBot(); 
