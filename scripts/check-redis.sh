@@ -159,7 +159,7 @@ if [ "$IN_DOCKER" = true ]; then
         fi
     else
         echo -e "${RED}❌ Redis container not found or not running${NC}"
-        echo "Check 'docker ps' or 'docker compose ps' to see if Redis container is running"
+        echo "Check 'docker ps' or 'docker-compose ps' to see if Redis container is running"
     fi
 else
     echo ""

@@ -1,66 +1,77 @@
 #!/bin/bash
-# Deployment script for CopperX Telegram Bot on Fedora
+# Deployment script for CopperX Bot
 
-# Exit on any error
+# Exit on error
 set -e
 
-echo "Deploying CopperX Telegram Bot..."
+# Define colors for output
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
-# 1. Pull latest changes if using git
-if [ -d ".git" ]; then
-  echo "Pulling latest changes from git..."
-  git pull
+echo -e "${YELLOW}Starting CopperX Bot deployment...${NC}"
+
+# Check if git is available and we're in a git repository
+if command -v git &> /dev/null && [ -d ".git" ]; then
+    echo -e "${GREEN}Git repository detected, pulling latest changes...${NC}"
+    git pull
 else
-  echo "Not a git repository, skipping git pull"
+    echo -e "${YELLOW}Not a git repository or git not installed. Skipping pull...${NC}"
 fi
 
-# 2. Install dependencies
-echo "Installing dependencies..."
+# Install dependencies
+echo -e "${GREEN}Installing dependencies...${NC}"
 npm install
 
-# 3. Build the application
-echo "Building application..."
+# Build the application
+echo -e "${GREEN}Building the application...${NC}"
 npm run build
 
-# 4. Check Redis status
-echo "Checking Redis status..."
-redis_status=$(systemctl is-active redis)
-if [ "$redis_status" != "active" ]; then
-  echo "Redis is not running. Starting Redis..."
-  sudo systemctl start redis
-  sudo systemctl enable redis
+# Check if Redis is running
+if command -v systemctl &> /dev/null; then
+    redis_status=$(systemctl is-active redis)
+    if [ "$redis_status" != "active" ]; then
+        echo -e "${YELLOW}Redis service is not running. Starting it...${NC}"
+        sudo systemctl start redis
+        echo -e "${GREEN}Redis started.${NC}"
+    else
+        echo -e "${GREEN}Redis is running.${NC}"
+    fi
 else
-  echo "Redis is running correctly."
+    echo -e "${YELLOW}Cannot check Redis status (systemctl not available).${NC}"
 fi
 
-# 5. Create logs directory if it doesn't exist
-echo "Setting up logs directory..."
-mkdir -p logs
+# Create logs directory if it doesn't exist
+if [ ! -d "logs" ]; then
+    echo -e "${GREEN}Creating logs directory...${NC}"
+    mkdir -p logs
+fi
 
-# 6. Check if PM2 is installed
+# Check if PM2 is installed
 if ! command -v pm2 &> /dev/null; then
-  echo "PM2 is not installed. Installing PM2..."
-  sudo npm install -g pm2
-else
-  echo "PM2 is already installed."
+    echo -e "${YELLOW}PM2 is not installed. Installing it globally...${NC}"
+    npm install -g pm2
 fi
 
-# 7. Stop the current bot if running
-echo "Stopping any running instance..."
+# Stop the bot if it's already running
+echo -e "${GREEN}Stopping any running instance of the bot...${NC}"
 pm2 stop copperx-bot 2>/dev/null || true
 
-# 8. Start the bot with PM2
-echo "Starting bot with PM2..."
+# Start the bot using PM2 and the ecosystem config
+echo -e "${GREEN}Starting the bot with PM2...${NC}"
 pm2 start ecosystem.config.js
 
-# 9. Save PM2 configuration
-echo "Saving PM2 configuration..."
+# Save the PM2 configuration to persist across reboots
+echo -e "${GREEN}Saving PM2 configuration...${NC}"
 pm2 save
 
-# 10. Ensure PM2 starts on system boot
-echo "Setting up PM2 to start on boot..."
-pm2 startup | tail -n 1 | bash || true
+# Check if PM2 is set to start on boot
+pm2_startup=$(pm2 startup | grep -o "sudo .*")
+if [ ! -z "$pm2_startup" ]; then
+    echo -e "${YELLOW}To enable PM2 to start on system boot, run:${NC}"
+    echo "$pm2_startup"
+fi
 
-echo "Deployment completed successfully!"
-echo "You can monitor the bot with: pm2 logs copperx-bot"
-echo "Or check bot status with: pm2 status" 
+echo -e "${GREEN}Deployment complete! The bot is now running.${NC}"
+echo "Use 'pm2 logs copperx-bot' to view the bot logs." 
