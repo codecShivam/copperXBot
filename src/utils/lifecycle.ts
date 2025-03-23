@@ -1,94 +1,121 @@
 import fs from 'fs';
 import path from 'path';
 import { Telegraf } from 'telegraf';
-import { BotContext } from '../types';
+import { closeRedisConnection } from './sessionStore';
 
-const PID_FILE = path.join(process.cwd(), '.bot.pid');
+const BOT_LOCK_FILE = path.join(process.cwd(), '.bot.lock');
 
 /**
- * Write the current process ID to a file
- * This helps with managing multiple bot instances
+ * Checks if another bot process is already running
+ * @returns Process ID of running bot, or null if none
+ */
+export const checkRunningBot = (): number | null => {
+  try {
+    if (fs.existsSync(BOT_LOCK_FILE)) {
+      const pidString = fs.readFileSync(BOT_LOCK_FILE, 'utf8').trim();
+      const pid = parseInt(pidString);
+      
+      if (isNaN(pid)) {
+        console.warn('Found invalid PID in lock file, assuming no running process');
+        return null;
+      }
+      
+      // Check if the process is actually running
+      try {
+        // Sending signal 0 doesn't actually kill the process,
+        // it just checks if the process exists
+        process.kill(pid, 0);
+        return pid; // Process exists
+      } catch (e) {
+        // Process doesn't exist
+        console.log(`Process ${pid} from lock file not found, assuming old lock file`);
+        fs.unlinkSync(BOT_LOCK_FILE);
+        return null;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('Error checking for running bot:', error);
+    return null;
+  }
+};
+
+/**
+ * Registers the current bot process in the lock file
  */
 export const registerBotProcess = (): void => {
   try {
-    fs.writeFileSync(PID_FILE, process.pid.toString());
-    console.log(`Bot process registered with PID: ${process.pid}`);
+    fs.writeFileSync(BOT_LOCK_FILE, process.pid.toString());
+    console.log(`Registered bot process with PID: ${process.pid}`);
   } catch (error) {
     console.error('Error registering bot process:', error);
   }
 };
 
 /**
- * Remove the PID file on bot shutdown
+ * Removes the lock file
  */
-export const unregisterBotProcess = (): void => {
+export const cleanupBotProcess = (): void => {
   try {
-    if (fs.existsSync(PID_FILE)) {
-      fs.unlinkSync(PID_FILE);
-      console.log('Bot process unregistered');
+    if (fs.existsSync(BOT_LOCK_FILE)) {
+      fs.unlinkSync(BOT_LOCK_FILE);
+      console.log('Removed bot lock file');
     }
   } catch (error) {
-    console.error('Error unregistering bot process:', error);
+    console.error('Error cleaning up bot process:', error);
   }
-};
-
-/**
- * Check if another bot instance is running
- * @returns PID of the running instance, or null if none found
- */
-export const checkRunningBot = (): number | null => {
-  try {
-    if (fs.existsSync(PID_FILE)) {
-      const pid = parseInt(fs.readFileSync(PID_FILE, 'utf-8'), 10);
-      
-      // Check if process is actually running
-      try {
-        // Sending signal 0 doesn't do anything to the process
-        // but will throw an error if the process doesn't exist
-        process.kill(pid, 0);
-        return pid; // Process exists
-      } catch (e) {
-        // Process doesn't exist, remove the stale PID file
-        fs.unlinkSync(PID_FILE);
-        return null;
-      }
-    }
-  } catch (error) {
-    console.error('Error checking for running bot:', error);
-  }
-  
-  return null;
 };
 
 /**
  * Setup graceful shutdown handlers for the bot
  * @param bot Telegraf bot instance
  */
-export const setupGracefulShutdown = (bot: Telegraf<BotContext>): void => {
-  const shutdown = (signal: string) => {
-    console.log(`${signal} received. Shutting down bot gracefully...`);
-    bot.stop(signal);
-    unregisterBotProcess();
+export const setupGracefulShutdown = (bot: Telegraf): void => {
+  process.once('SIGINT', async () => {
+    console.log('SIGINT signal received');
+    await performShutdown(bot, 'SIGINT');
+  });
+  
+  process.once('SIGTERM', async () => {
+    console.log('SIGTERM signal received');
+    await performShutdown(bot, 'SIGTERM');
+  });
+  
+  process.on('uncaughtException', async (error) => {
+    console.error('Uncaught exception:', error);
+    await performShutdown(bot, 'UNCAUGHT_EXCEPTION');
+  });
+  
+  process.on('unhandledRejection', async (reason, promise) => {
+    console.error('Unhandled promise rejection:', reason);
+    await performShutdown(bot, 'UNHANDLED_REJECTION');
+  });
+};
+
+/**
+ * Perform a graceful shutdown of all services
+ * @param bot Telegraf bot instance
+ * @param reason Reason for shutdown
+ */
+export const performShutdown = async (bot: Telegraf, reason: string): Promise<void> => {
+  console.log(`Starting graceful shutdown: ${reason}`);
+  
+  try {
+    // Stop the bot
+    await bot.stop(reason);
+    console.log('Bot stopped successfully');
     
-    // Give time for connections to close properly before exiting
-    setTimeout(() => {
-      process.exit(0);
-    }, 2000);
-  };
+    // Close Redis connection
+    await closeRedisConnection();
+    console.log('Redis connection closed');
+    
+    // Cleanup lock file
+    cleanupBotProcess();
+    
+    console.log('Shutdown complete');
+  } catch (error) {
+    console.error('Error during shutdown:', error);
+  }
   
-  // Handle termination signals
-  process.once('SIGINT', () => shutdown('SIGINT'));
-  process.once('SIGTERM', () => shutdown('SIGTERM'));
-  
-  // Handle uncaught exceptions
-  process.on('uncaughtException', (error) => {
-    console.error('Uncaught Exception:', error);
-    shutdown('UNCAUGHT_EXCEPTION');
-  });
-  
-  // Handle unhandled rejections (promises)
-  process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-    // Don't exit the process, just log the error
-  });
+  // Don't call process.exit here - let the process exit naturally
 }; 

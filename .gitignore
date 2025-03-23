@@ -10,10 +10,16 @@ build/
 
 # Environment variables
 .env
+.env.*
+!.env.example
 
 # Logs
 logs/
 *.log
+
+# Runtime files
+.bot.lock
+.bot.pid
 
 # IDE and editor files
 .idea/
@@ -24,5 +30,3 @@ logs/
 # OS generated files
 .DS_Store
 Thumbs.db 
-
-.bot.pid

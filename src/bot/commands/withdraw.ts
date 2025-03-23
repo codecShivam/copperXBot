@@ -408,7 +408,7 @@ const withdrawFlow = Composer.on(message('text'), async (ctx, next) => {
       await ctx.reply(message, {
         parse_mode: 'Markdown',
         link_preview_options: {
-          is_disabled: true,
+          is_disabled: true
         },
         ...confirmationKeyboard('withdraw_confirm', 'withdraw_cancel')
       });
