@@ -202,4 +202,4 @@ export interface BankAccount {
   accountNumber: string;
   routingNumber: string;
   bankName: string;
-} 
+}

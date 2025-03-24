@@ -86,7 +86,7 @@ export const setupGracefulShutdown = (bot: Telegraf): void => {
     await performShutdown(bot, 'UNCAUGHT_EXCEPTION');
   });
   
-  process.on('unhandledRejection', async (reason, promise) => {
+  process.on('unhandledRejection', async (reason) => {
     console.error('Unhandled promise rejection:', reason);
     await performShutdown(bot, 'UNHANDLED_REJECTION');
   });

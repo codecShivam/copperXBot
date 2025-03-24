@@ -4,4 +4,4 @@ import * as transfersApi from './transfers';
 import * as notificationsApi from './notifications';
 import * as kycApi from './kyc';
 
-export { authApi, walletApi, transfersApi, notificationsApi, kycApi }; 
+export { authApi, walletApi, transfersApi, notificationsApi, kycApi };

@@ -1,7 +1,6 @@
 import { Redis } from 'ioredis';
 import crypto from 'crypto';
 import { SessionData } from '../types';
-import config from '../config';
 
 // Default session expiry in seconds (24 hours)
 const SESSION_EXPIRY = 24 * 60 * 60;

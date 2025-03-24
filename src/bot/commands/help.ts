@@ -1,5 +1,4 @@
 import { Composer } from 'telegraf';
-import { getSession } from '../../utils/session';
 import { backButtonKeyboard } from '../keyboards';
 
 // Help command handler
@@ -20,9 +19,9 @@ const helpCommand = Composer.command('help', async (ctx) => {
       `Contact Copperx support: [Telegram Support](https://t.me/copperxcommunity/2183)`,
     {
       parse_mode: 'Markdown',
-      reply_markup: backButtonKeyboard().reply_markup
+      reply_markup: backButtonKeyboard().reply_markup,
     },
   );
 });
 
-export default helpCommand; 
+export default helpCommand;

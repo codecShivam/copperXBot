@@ -3,24 +3,24 @@
 
 // Color palette (These are for reference - actual styling is done with emojis and formatting)
 export const COLORS = {
-  primary: '#5F76F9',     
-  secondary: '#CAD2FC',   
-  background: '#F7F9FC',  
-  white: '#FFFFFF',       
-  dark: '#13171F',        
-  gray: '#8891A3'         
-}; 
+  primary: '#5F76F9',
+  secondary: '#CAD2FC',
+  background: '#F7F9FC',
+  white: '#FFFFFF',
+  dark: '#13171F',
+  gray: '#8891A3',
+};
 
 // Section decorators for message formatting
 export const SECTION = {
-  header: '🔹 ',           // Uses primary color tone
-  subheader: '  ◽️ ',      // Uses secondary color tone
-  item: '   • ',          // List item
-  success: '✅ ',          // Success indicator
-  error: '❌ ',            // Error indicator
-  warning: '⚠️ ',          // Warning indicator
-  info: '📝 ',             // Info indicator
-  loading: '🔄 '           // Loading indicator
+  header: '🔹 ', // Uses primary color tone
+  subheader: '  ◽️ ', // Uses secondary color tone
+  item: '   • ', // List item
+  success: '✅ ', // Success indicator
+  error: '❌ ', // Error indicator
+  warning: '⚠️ ', // Warning indicator
+  info: '📝 ', // Info indicator
+  loading: '🔄 ', // Loading indicator
 };
 
 // Dividers for visual separation
@@ -29,8 +29,8 @@ export const DIVIDERS = {
   medium: '\n\n',
   large: '\n\n\n',
   section: '\n┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n',
-  dots: '\n• • • • • • • • • • • •\n'
-}; 
+  dots: '\n• • • • • • • • • • • •\n',
+};
 
 // Message styling helpers
 export const formatHeader = (text: string): string => {
@@ -61,6 +61,9 @@ export const formatLoading = (text: string): string => {
   return `${SECTION.loading}${text}`;
 };
 
-export const formatAmount = (amount: string | number, symbol: string = ''): string => {
+export const formatAmount = (
+  amount: string | number,
+  symbol: string = '',
+): string => {
   return `*${amount}* ${symbol}`.trim();
-}; 
+};

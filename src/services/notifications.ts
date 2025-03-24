@@ -30,7 +30,7 @@ export const initializePusher = (
 ): Pusher => {
   // Use the provided bot or fall back to global bot
   const telegramBot = bot || globalBot;
-  
+
   // If no bot is available, log error and return a disconnected Pusher instance
   if (!telegramBot) {
     console.error('No bot instance available for notifications');
@@ -40,7 +40,7 @@ export const initializePusher = (
     dummyPusher.disconnect();
     return dummyPusher;
   }
-  
+
   // Initialize Pusher client with authentication
   const pusherClient = new Pusher(config.pusher.key, {
     cluster: config.pusher.cluster,
@@ -52,7 +52,7 @@ export const initializePusher = (
             socketId,
             channel.name,
           );
-          
+
           if (response && response.auth) {
             callback(null, {
               auth: response.auth,
@@ -60,67 +60,85 @@ export const initializePusher = (
             });
           } else {
             console.error('Invalid Pusher authentication response:', response);
-            callback(new Error('Pusher authentication failed: Invalid response'), null);
+            callback(
+              new Error('Pusher authentication failed: Invalid response'),
+              null,
+            );
           }
         } catch (error) {
           console.error('Pusher authorization error:', error);
-          callback(error instanceof Error ? error : new Error('Unknown error'), null);
+          callback(
+            error instanceof Error ? error : new Error('Unknown error'),
+            null,
+          );
         }
       },
     }),
   });
-  
+
   // Subscribe to organization's private channel
   const channelName = `private-org-${organizationId}`;
   const channel = pusherClient.subscribe(channelName);
-  
+
   // Log subscription status
   channel.bind('pusher:subscription_succeeded', () => {
     console.log(`Successfully subscribed to channel: ${channelName}`);
-    
+
     // Notify user
     try {
-      telegramBot.telegram.sendMessage(
-        chatId,
-        '🔔 *Notifications Enabled*\n\nYou will now receive real-time notifications for deposits and other events.',
-        {
-          parse_mode: 'Markdown',
-        },
-      ).catch(err => console.error('Error sending notification success message:', err));
+      telegramBot.telegram
+        .sendMessage(
+          chatId,
+          '🔔 *Notifications Enabled*\n\nYou will now receive real-time notifications for deposits and other events.',
+          {
+            parse_mode: 'Markdown',
+          },
+        )
+        .catch((err) =>
+          console.error('Error sending notification success message:', err),
+        );
     } catch (error) {
       console.error('Error sending notification success message:', error);
     }
   });
-  
+
   channel.bind('pusher:subscription_error', (error: any) => {
     console.error('Subscription error:', error);
-    
+
     // Notify user
     try {
-      telegramBot.telegram.sendMessage(
-        chatId,
-        '⚠️ Failed to enable notifications. You may not receive real-time updates.',
-      ).catch(err => console.error('Error sending notification error message:', err));
+      telegramBot.telegram
+        .sendMessage(
+          chatId,
+          '⚠️ Failed to enable notifications. You may not receive real-time updates.',
+        )
+        .catch((err) =>
+          console.error('Error sending notification error message:', err),
+        );
     } catch (error) {
       console.error('Error sending notification error message:', error);
     }
   });
-  
+
   // Bind to the deposit event
   channel.bind('deposit', (data: any) => {
     try {
-      telegramBot.telegram.sendMessage(
-        chatId,
-        `💰 *New Deposit Received*\n\n${data.amount} ${data.token} deposited on ${data.network}`,
-        {
-          parse_mode: 'Markdown',
-        },
-      ).catch(err => console.error('Error sending deposit notification:', err));
+      telegramBot.telegram
+        .sendMessage(
+          chatId,
+          `💰 *New Deposit Received*\n\n${data.amount} ${data.token} deposited on ${data.network}`,
+          {
+            parse_mode: 'Markdown',
+          },
+        )
+        .catch((err) =>
+          console.error('Error sending deposit notification:', err),
+        );
     } catch (error) {
       console.error('Error sending deposit notification:', error);
     }
   });
-  
+
   return pusherClient;
 };
 
@@ -148,7 +166,7 @@ export const setupNotifications = (
       pusherClients[chatId].disconnect();
       delete pusherClients[chatId];
     }
-    
+
     // Initialize new client with the provided bot or global bot
     pusherClients[chatId] = initializePusher(
       bot,
@@ -170,4 +188,4 @@ export const cleanupNotifications = (chatId: number): void => {
     pusherClients[chatId].disconnect();
     delete pusherClients[chatId];
   }
-}; 
+};

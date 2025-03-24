@@ -6,11 +6,11 @@
  */
 export const formatAmount = (amount: string | number, decimals = 2): string => {
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-  
+
   if (isNaN(numAmount)) {
     return '0.00';
   }
-  
+
   return numAmount.toFixed(decimals);
 };
 
@@ -21,7 +21,7 @@ export const formatAmount = (amount: string | number, decimals = 2): string => {
  */
 export const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
-  
+
   return date.toLocaleString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -46,11 +46,11 @@ export const truncateAddress = (
   if (!address) {
     return '';
   }
-  
+
   if (address.length <= startChars + endChars) {
     return address;
   }
-  
+
   return `${address.substring(0, startChars)}...${address.substring(
     address.length - endChars,
   )}`;
@@ -81,4 +81,4 @@ export const escapeMarkdown = (text: string): string => {
     .replace(/\}/g, '\\}')
     .replace(/\./g, '\\.')
     .replace(/\!/g, '\\!');
-}; 
+};

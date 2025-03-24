@@ -11,7 +11,11 @@ import historyCommand from './bot/commands/history';
 import sendCommand from './bot/commands/send';
 import withdrawCommand from './bot/commands/withdraw';
 import { mainMenuKeyboard } from './bot/keyboards';
-import { checkRunningBot, registerBotProcess, setupGracefulShutdown } from './utils/lifecycle';
+import {
+  checkRunningBot,
+  registerBotProcess,
+  setupGracefulShutdown,
+} from './utils/lifecycle';
 import { setGlobalBot } from './services/notifications';
 import redisSession from './utils/redisSession';
 import { closeRedisConnection } from './utils/sessionStore';
@@ -19,8 +23,12 @@ import { closeRedisConnection } from './utils/sessionStore';
 // Check if another bot instance is already running
 const runningPid = checkRunningBot();
 if (runningPid) {
-  console.error(`❌ Another bot instance is already running with PID: ${runningPid}`);
-  console.error('Please stop that instance before starting a new one, or use "npm run clean-start"');
+  console.error(
+    `❌ Another bot instance is already running with PID: ${runningPid}`,
+  );
+  console.error(
+    'Please stop that instance before starting a new one, or use "npm run clean-start"',
+  );
   process.exit(1);
 }
 
@@ -95,25 +103,27 @@ bot.action('help', async (ctx) => {
 // Error handling
 bot.catch((err, ctx) => {
   console.error(`Error for ${ctx.updateType}:`, err);
-  ctx.reply('An error occurred while processing your request. Please try again later.');
+  ctx.reply(
+    'An error occurred while processing your request. Please try again later.',
+  );
 });
 
 // Start the bot
 const startBot = async () => {
   try {
     console.log('Starting bot...');
-    
+
     // Register the bot process
     registerBotProcess();
-    
+
     // Setup graceful shutdown
     setupGracefulShutdown(bot);
-    
+
     await bot.launch();
     console.log('Bot started successfully!');
   } catch (error) {
     console.error('Error starting bot:', error);
-    
+
     // Ensure we try to stop the bot if it's running
     try {
       bot.stop('ERROR');
@@ -122,8 +132,7 @@ const startBot = async () => {
     } catch (stopError) {
       console.error('Error stopping bot:', stopError);
     }
-    
-    
+
     // Give time for connections to close properly
     console.log('Exiting in 2 seconds...');
     setTimeout(() => {
@@ -145,4 +154,4 @@ process.once('SIGTERM', async () => {
   bot.stop('SIGTERM');
 });
 
-startBot(); 
+startBot();

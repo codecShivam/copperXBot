@@ -37,4 +37,4 @@ if (!config.bot.token) {
   process.exit(1);
 }
 
-export default config; 
+export default config;

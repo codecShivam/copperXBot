@@ -46,7 +46,7 @@ export const walletsKeyboard = (wallets: Wallet[], actionPrefix: string) => {
   const buttons = wallets.map((wallet) => {
     const network = wallet.network.toUpperCase();
     const isDefault = wallet.isDefault ? ' (Default)' : '';
-    
+
     return [
       Markup.button.callback(
         `${network}${isDefault}`,
@@ -54,9 +54,9 @@ export const walletsKeyboard = (wallets: Wallet[], actionPrefix: string) => {
       ),
     ];
   });
-  
+
   buttons.push([Markup.button.callback('⬅️ Back', 'main_menu')]);
-  
+
   return Markup.inlineKeyboard(buttons);
 };
 
@@ -69,7 +69,7 @@ export const walletsKeyboard = (wallets: Wallet[], actionPrefix: string) => {
 export const networksKeyboard = (balances: Balance[], actionPrefix: string) => {
   // Get unique networks
   const networks = [...new Set(balances.map((balance) => balance.network))];
-  
+
   const buttons = networks.map((network) => {
     return [
       Markup.button.callback(
@@ -78,9 +78,9 @@ export const networksKeyboard = (balances: Balance[], actionPrefix: string) => {
       ),
     ];
   });
-  
+
   buttons.push([Markup.button.callback('⬅️ Back', 'main_menu')]);
-  
+
   return Markup.inlineKeyboard(buttons);
 };
 
@@ -148,9 +148,7 @@ export const walletSettingsKeyboard = () => {
       Markup.button.callback('➕ Generate New Wallet', 'wallet_generate'),
       Markup.button.callback('📊 Token Details', 'wallet_token_details'),
     ],
-    [
-      Markup.button.callback('⬅️ Back to Balance', 'balance'),
-    ],
+    [Markup.button.callback('⬅️ Back to Balance', 'balance')],
   ]);
 };
 
@@ -166,32 +164,35 @@ export const paginatedNetworksKeyboard = (networks: string[], page = 0) => {
   const startIdx = page * pageSize;
   const endIdx = Math.min(startIdx + pageSize, networks.length);
   const currentPageNetworks = networks.slice(startIdx, endIdx);
-  
-  const buttons = currentPageNetworks.map(network => [
-    Markup.button.callback(
-      network.toUpperCase(),
-      `balance_network_${network}`
-    )
+
+  const buttons = currentPageNetworks.map((network) => [
+    Markup.button.callback(network.toUpperCase(), `balance_network_${network}`),
   ]);
-  
+
   // Add pagination controls if needed
   const paginationRow = [];
   if (totalPages > 1) {
     if (page > 0) {
-      paginationRow.push(Markup.button.callback('⬅️ Prev', `network_page_${page - 1}`));
+      paginationRow.push(
+        Markup.button.callback('⬅️ Prev', `network_page_${page - 1}`),
+      );
     }
-    
-    paginationRow.push(Markup.button.callback(`${page + 1}/${totalPages}`, 'noop'));
-    
+
+    paginationRow.push(
+      Markup.button.callback(`${page + 1}/${totalPages}`, 'noop'),
+    );
+
     if (page < totalPages - 1) {
-      paginationRow.push(Markup.button.callback('Next ➡️', `network_page_${page + 1}`));
+      paginationRow.push(
+        Markup.button.callback('Next ➡️', `network_page_${page + 1}`),
+      );
     }
-    
+
     buttons.push(paginationRow);
   }
-  
+
   buttons.push([Markup.button.callback('⬅️ Back to Balance', 'balance')]);
-  
+
   return Markup.inlineKeyboard(buttons);
 };
 
@@ -202,16 +203,18 @@ export const paginatedNetworksKeyboard = (networks: string[], page = 0) => {
  * @returns Inline keyboard markup with token options
  */
 export const networkTokensKeyboard = (balances: Balance[], network: string) => {
-  const networkBalances = balances.filter(b => b.network === network);
-  
-  const buttons = networkBalances.map(balance => [
+  const networkBalances = balances.filter((b) => b.network === network);
+
+  const buttons = networkBalances.map((balance) => [
     Markup.button.callback(
       `${balance.token}: ${balance.formattedBalance || balance.balance}`,
-      `token_details_${network}_${balance.token}`
-    )
+      `token_details_${network}_${balance.token}`,
+    ),
   ]);
-  
-  buttons.push([Markup.button.callback('⬅️ Back to Networks', 'balance_networks')]);
-  
+
+  buttons.push([
+    Markup.button.callback('⬅️ Back to Networks', 'balance_networks'),
+  ]);
+
   return Markup.inlineKeyboard(buttons);
-}; 
+};

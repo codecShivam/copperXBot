@@ -8,12 +8,12 @@ export const NETWORK_NAMES = {
   '42161': 'Arbitrum',
   '10': 'Optimism',
   '8453': 'Base',
-  'ethereum': 'Ethereum',
-  'polygon': 'Polygon',
-  'arbitrum': 'Arbitrum',
-  'optimism': 'Optimism',
-  'base': 'Base',
-  'mainnet': 'Ethereum Mainnet',
+  ethereum: 'Ethereum',
+  polygon: 'Polygon',
+  arbitrum: 'Arbitrum',
+  optimism: 'Optimism',
+  base: 'Base',
+  mainnet: 'Ethereum Mainnet',
   // Add more networks as needed
 };
 
@@ -35,12 +35,12 @@ export const NETWORK_IDS = {
 export const formatNetworkForDisplay = (network: string): string => {
   // Convert to lowercase for consistent matching
   const networkKey = String(network).toLowerCase();
-  
+
   // Check if we have a direct mapping
   if (NETWORK_NAMES[network]) {
     return NETWORK_NAMES[network];
   }
-  
+
   // Try to match partial names
   if (networkKey.includes('ethereum') || networkKey.includes('eth')) {
     return 'Ethereum';
@@ -57,7 +57,7 @@ export const formatNetworkForDisplay = (network: string): string => {
   if (networkKey.includes('base')) {
     return 'Base';
   }
-  
+
   // If no match found, return the capitalized input
   return network.charAt(0).toUpperCase() + network.slice(1);
 };
@@ -82,6 +82,6 @@ export const getSupportedNetworks = () => {
     { name: 'Polygon', id: NETWORK_IDS.polygon },
     { name: 'Arbitrum', id: NETWORK_IDS.arbitrum },
     { name: 'Optimism', id: NETWORK_IDS.optimism },
-    { name: 'Base', id: NETWORK_IDS.base }
+    { name: 'Base', id: NETWORK_IDS.base },
   ];
-}; 
+};

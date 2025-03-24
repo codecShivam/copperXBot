@@ -1,4 +1,4 @@
-import { BotContext, SessionData } from '../types';
+import { SessionData } from '../types';
 import { Context } from 'telegraf';
 
 /**
@@ -18,7 +18,7 @@ export const isAuthenticated = (ctx: Context): boolean => {
 export const clearSession = (ctx: Context): void => {
   const session = getSession(ctx);
   if (session) {
-    Object.keys(session).forEach(key => {
+    Object.keys(session).forEach((key) => {
       delete session[key];
     });
     session.authenticated = false;
@@ -59,16 +59,12 @@ export const setAuthData = (
  * @param key Data key
  * @param value Data value
  */
-export const setTempData = (
-  ctx: Context,
-  key: string,
-  value: any,
-): void => {
+export const setTempData = (ctx: Context, key: string, value: any): void => {
   const session = getSession(ctx);
   if (!session.tempData) {
     session.tempData = {};
   }
-  
+
   session.tempData[key] = value;
 };
 
@@ -83,7 +79,7 @@ export const getTempData = (ctx: Context, key: string): any => {
   if (!session.tempData) {
     return undefined;
   }
-  
+
   return session.tempData[key];
 };
 
@@ -97,7 +93,7 @@ export const clearTempData = (ctx: Context, key?: string): void => {
   if (!session.tempData) {
     return;
   }
-  
+
   if (key) {
     delete session.tempData[key];
   } else {
@@ -113,4 +109,4 @@ export const clearTempData = (ctx: Context, key?: string): void => {
  */
 export const getSession = (ctx: Context): SessionData => {
   return (ctx as any).session || {};
-}; 
+};
