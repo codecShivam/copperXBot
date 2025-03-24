@@ -55,7 +55,7 @@ async function startWithdrawal(ctx) {
     try {
       await ctx.deleteMessage(loadingMsg.message_id);
     } catch (error) {
-      console.warn('[WITHDRAW] Could not delete loading message:', error);
+      console.warn('[WITHDRAW] Could not delete loading message');
     }
 
     // If KYC is not approved, show a message and provide a link to complete KYC
@@ -123,7 +123,7 @@ async function startWithdrawal(ctx) {
     // Set current step
     session.currentStep = 'withdraw_network';
   } catch (error) {
-    console.error('Error starting withdrawal:', error);
+    console.error('[WITHDRAW] Error starting withdrawal');
     await ctx.reply(
       `❌ Failed to start withdrawal: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
     );
@@ -167,9 +167,7 @@ const withdrawFlow = Composer.on(message('text'), async (ctx, next) => {
     try {
       // walletApi.getBalances now returns the array directly
       const walletData = await walletApi.getBalances(session.token as string);
-      console.log(
-        `[WITHDRAW] Fetched ${walletData.length} wallets with balances for token selection`,
-      );
+      console.log('[WITHDRAW] Fetched wallets with balances for token selection');
 
       // Filter wallets by network and extract tokens
       const networkWallets = walletData.filter(
@@ -228,7 +226,7 @@ const withdrawFlow = Composer.on(message('text'), async (ctx, next) => {
       // Update step
       session.currentStep = 'withdraw_token';
     } catch (error) {
-      console.error('Error fetching tokens:', error);
+      console.error('[WITHDRAW] Error fetching tokens');
       await ctx.reply(
         `❌ Failed to fetch tokens: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
       );
@@ -255,9 +253,7 @@ const withdrawFlow = Composer.on(message('text'), async (ctx, next) => {
     const selectedNetwork = getTempData(ctx, 'network') as string;
 
     // Log with network name for debugging
-    console.log(
-      `[WITHDRAW] Selected token ${selectedToken} on ${formatNetworkForDisplay(selectedNetwork)}`,
-    );
+    console.log(`[WITHDRAW] Selected token ${selectedToken} on network`);
 
     // Store selected token
     setTempData(ctx, 'token', selectedToken);
@@ -314,7 +310,7 @@ const withdrawFlow = Composer.on(message('text'), async (ctx, next) => {
       try {
         await ctx.deleteMessage(loadingMsg.message_id);
       } catch (error) {
-        console.warn('[WITHDRAW] Could not delete loading message:', error);
+        console.warn('[WITHDRAW] Could not delete loading message');
       }
 
       // Filter for verified bank accounts
@@ -355,7 +351,7 @@ const withdrawFlow = Composer.on(message('text'), async (ctx, next) => {
       // Update step
       session.currentStep = 'withdraw_bank_account';
     } catch (error) {
-      console.error('Error fetching bank accounts:', error);
+      console.error('[WITHDRAW] Error fetching bank accounts');
       await ctx.reply(
         `❌ Failed to fetch bank accounts: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
       );
@@ -409,11 +405,7 @@ const withdrawFlow = Composer.on(message('text'), async (ctx, next) => {
         sourceCountry: 'none',
       };
 
-      console.log(`[WITHDRAW] Requesting offramp quote with data:`, {
-        ...quoteData,
-        amount: Number(amount).toFixed(2), // Log readable amount
-        accountId: selectedAccount.id.slice(0, 8) + '...', // Truncate for logging
-      });
+      console.log('[WITHDRAW] Requesting offramp quote');
 
       // Get the quote
       const quote = await transfersApi.getBankWithdrawalQuote(
@@ -425,7 +417,7 @@ const withdrawFlow = Composer.on(message('text'), async (ctx, next) => {
       try {
         await ctx.deleteMessage(loadingMsg.message_id);
       } catch (error) {
-        console.warn('[WITHDRAW] Could not delete loading message:', error);
+        console.warn('[WITHDRAW] Could not delete loading message');
       }
 
       // Parse quote payload to display details
@@ -477,7 +469,7 @@ const withdrawFlow = Composer.on(message('text'), async (ctx, next) => {
       // Update step
       session.currentStep = 'withdraw_confirm';
     } catch (error) {
-      console.error('Error getting withdrawal quote:', error);
+      console.error('[WITHDRAW] Error getting withdrawal quote');
       await ctx.reply(
         `❌ Failed to get withdrawal quote: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
       );
@@ -524,10 +516,7 @@ const withdrawConfirmAction = Composer.action(
         quoteSignature: withdrawQuote.signature,
       };
 
-      console.log(
-        '[WITHDRAW] Executing bank transfer with signature:',
-        withdrawQuote.signature.slice(0, 15) + '...',
-      );
+      console.log('[WITHDRAW] Executing bank transfer');
 
       // Execute the transfer using the offramp API
       const result = await transfersApi.processBankWithdrawal(
@@ -539,7 +528,7 @@ const withdrawConfirmAction = Composer.action(
       try {
         await ctx.deleteMessage(loadingMsg.message_id);
       } catch (error) {
-        console.warn('[WITHDRAW] Could not delete loading message:', error);
+        console.warn('[WITHDRAW] Could not delete loading message');
       }
 
       // Clear temp data and reset step
@@ -576,7 +565,7 @@ const withdrawConfirmAction = Composer.action(
 
       await ctx.reply('Return to main menu:', backButtonKeyboard());
     } catch (error) {
-      console.error('Error processing withdrawal:', error);
+      console.error('[WITHDRAW] Error processing withdrawal');
 
       // Format a user-friendly error message
       let errorMessage =

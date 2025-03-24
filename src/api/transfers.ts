@@ -33,10 +33,6 @@ export const getTransferHistory = async (
 
     console.log(`[API] Making request to ${url}`);
 
-    // Log token (first 10 chars only for security)
-    const tokenPreview = token ? `${token.substring(0, 10)}...` : 'undefined';
-    console.log(`[API] Using auth token: ${tokenPreview}`);
-
     // Make the API request
     const response = await api.get(url, {
       headers: {
@@ -45,52 +41,25 @@ export const getTransferHistory = async (
     });
 
     console.log(`[API] Response status: ${response.status}`);
-    console.log(`[API] Response headers:`, response.headers);
 
-    // Log a summary of the response data for easier debugging
+    // Check if response data has the expected structure
+    if (!response.data || !response.data.data) {
+      console.error('[API] Unexpected response structure');
+      throw new Error('API returned invalid response format');
+    }
+
     if (response.data && response.data.data) {
       console.log(
         `[API] Got ${response.data.data.length} transactions of ${response.data.count} total`,
       );
-
-      // Log status counts to check if filtering is working
-      if (response.data.data.length > 0) {
-        const statusCounts = {};
-        response.data.data.forEach((item) => {
-          const itemStatus = item.status || 'unknown';
-          statusCounts[itemStatus] = (statusCounts[itemStatus] || 0) + 1;
-        });
-        console.log(`[API] Status distribution in response:`, statusCounts);
-      }
-
-      // Log full response data in debug mode
-      console.log(
-        `[API] Response data:`,
-        JSON.stringify(response.data, null, 2),
-      );
-    } else {
-      console.log(`[API] Unexpected response data:`, response.data);
-    }
-
-    // Check if response data has the expected structure
-    if (!response.data || !response.data.data) {
-      console.error('[API] Unexpected response structure:', response.data);
-      throw new Error('API returned invalid response format');
     }
 
     return response.data;
   } catch (error) {
-    console.error('[API] Error in getTransferHistory:', error);
+    console.error('[API] Error in getTransferHistory');
 
     if (axios.isAxiosError(error)) {
-      console.error('[API] Axios error details:');
       console.error(`[API] Status: ${error.response?.status}`);
-      console.error(`[API] Status text: ${error.response?.statusText}`);
-      console.error(`[API] Response data:`, error.response?.data);
-      console.error(`[API] Request URL: ${error.config?.url}`);
-      console.error(
-        `[API] Request method: ${error.config?.method?.toUpperCase()}`,
-      );
 
       if (error.response) {
         throw new Error(
@@ -122,10 +91,8 @@ function formatCryptoAmount(amount: string | number): string {
     // (large numbers are likely already multiplied)
     const LARGE_THRESHOLD = 1000000; // Arbitrary threshold to detect already-multiplied values
     if (numericAmount > LARGE_THRESHOLD) {
-      console.log(
-        '[API] Amount appears to be already in smallest unit:',
-        numericAmount,
-      );
+      // Don't log the actual amount
+      console.log('[API] Amount appears to be already in smallest unit');
       return numericAmount.toString();
     }
 
@@ -136,7 +103,7 @@ function formatCryptoAmount(amount: string | number): string {
     // Format as string without scientific notation for large numbers
     return scaledAmount.toLocaleString('fullwide', { useGrouping: false });
   } catch (error) {
-    console.error('[API] Error formatting crypto amount:', error);
+    console.error('[API] Error formatting crypto amount');
     // Return the original amount as string if conversion fails
     return amount.toString();
   }
@@ -161,14 +128,9 @@ export const sendEmailTransfer = async (
   try {
     // Always format the amount by multiplying by 10^8
     const formattedAmount = formatCryptoAmount(data.amount);
-    console.log(
-      `[API] Original amount: ${data.amount}, formatted: ${formattedAmount}`,
-    );
+    console.log('[API] Formatting amount for email transfer');
 
-    console.log('[API] Sending email transfer with data:', {
-      ...data,
-      amount: formattedAmount,
-    });
+    console.log('[API] Preparing email transfer');
 
     // Format request body according to API requirements
     const requestBody = {
@@ -178,8 +140,6 @@ export const sendEmailTransfer = async (
       purposeCode: 'self',
       note: data.note || undefined,
     };
-
-    console.log('[API] Formatted request body:', JSON.stringify(requestBody));
 
     const response = await axios.post(
       `${config.api.baseURL}/transfers/send`,
@@ -199,7 +159,7 @@ export const sendEmailTransfer = async (
       data: response.data,
     };
   } catch (error) {
-    console.error('[API] Send email transfer error:', error);
+    console.error('[API] Send email transfer error');
 
     // Better error handling
     let errorMessage = 'Unknown API error';
@@ -227,14 +187,9 @@ export const sendWalletTransfer = async (
   try {
     // Always format the amount by multiplying by 10^8
     const formattedAmount = formatCryptoAmount(data.amount);
-    console.log(
-      `[API] Original amount: ${data.amount}, formatted: ${formattedAmount}`,
-    );
+    console.log('[API] Formatting amount for wallet transfer');
 
-    console.log('[API] Sending wallet transfer with data:', {
-      ...data,
-      amount: formattedAmount,
-    });
+    console.log('[API] Preparing wallet transfer');
 
     // Format request body according to API requirements
     const requestBody = {
@@ -244,8 +199,6 @@ export const sendWalletTransfer = async (
       purposeCode: 'self',
       note: data.note || undefined,
     };
-
-    console.log('[API] Formatted request body:', JSON.stringify(requestBody));
 
     // Use the wallet-withdraw endpoint
     const response = await axios.post(
@@ -266,7 +219,7 @@ export const sendWalletTransfer = async (
       data: response.data,
     };
   } catch (error) {
-    console.error('[API] Send wallet transfer error:', error);
+    console.error('[API] Send wallet transfer error');
 
     // Better error handling
     let errorMessage = 'Unknown API error';
@@ -298,11 +251,7 @@ export const getOfframpQuote = async (
       quoteData.amount = formatCryptoAmount(quoteData.amount);
     }
 
-    console.log('[API] Getting offramp quote with data:', {
-      ...quoteData,
-      preferredBankAccountId:
-        quoteData.preferredBankAccountId.slice(0, 8) + '...',
-    });
+    console.log('[API] Getting offramp quote');
 
     const response = await api.post('/quotes/offramp', quoteData, {
       headers: {
@@ -311,27 +260,10 @@ export const getOfframpQuote = async (
     });
 
     console.log('[API] Offramp quote response status:', response.status);
-    console.log(
-      '[API] Quote payload signature:',
-      response.data.quoteSignature?.slice(0, 20) + '...',
-    );
-
-    // Parse and validate quote payload for additional checks
-    try {
-      const quotePayload = JSON.parse(response.data.quotePayload);
-      console.log('[API] Quote details:', {
-        fromAmount: parseInt(quotePayload.amount) / 1e8,
-        toAmount: parseInt(quotePayload.toAmount) / 1e8,
-        fee: parseInt(quotePayload.totalFee) / 1e8,
-        rate: quotePayload.rate,
-      });
-    } catch (e) {
-      console.warn('[API] Could not parse quote payload:', e);
-    }
 
     return response.data;
   } catch (error) {
-    console.error('[API] Offramp quote error:', error);
+    console.error('[API] Offramp quote error');
 
     // Better error handling
     let errorMessage = 'Unknown API error';
@@ -355,10 +287,7 @@ export const createOfframpTransfer = async (
   },
 ): Promise<any> => {
   try {
-    console.log(
-      '[API] Creating offramp transfer with signature:',
-      transferData.quoteSignature?.slice(0, 15) + '...',
-    );
+    console.log('[API] Creating offramp transfer');
 
     const response = await api.post('/transfers/offramp', transferData, {
       headers: {
@@ -368,11 +297,10 @@ export const createOfframpTransfer = async (
 
     console.log('[API] Offramp transfer response status:', response.status);
     console.log('[API] Transfer ID:', response.data.id);
-    console.log('[API] Transfer status:', response.data.status);
 
     return response.data;
   } catch (error) {
-    console.error('[API] Offramp transfer error:', error);
+    console.error('[API] Offramp transfer error');
 
     // Better error handling with specific messages for common errors
     let errorMessage = 'Unknown API error';
@@ -393,7 +321,7 @@ export const getAccounts = async (
   data: any[];
 }> => {
   try {
-    console.log('[API] Fetching user accounts...');
+    console.log('[API] Fetching user accounts');
 
     const response = await api.get('/accounts', {
       headers: {
@@ -401,38 +329,14 @@ export const getAccounts = async (
       },
     });
 
-    console.log(`[API] Accounts response status: ${response.status}`);
     console.log(`[API] Found ${response.data.data?.length || 0} accounts`);
-
-    if (response.data.data) {
-      // Count bank accounts vs. other account types for debugging
-      const accountTypes = {};
-      response.data.data.forEach((acc) => {
-        const type = acc.type || 'unknown';
-        accountTypes[type] = (accountTypes[type] || 0) + 1;
-      });
-      console.log('[API] Account types:', accountTypes);
-
-      // Check verification status of bank accounts
-      const bankAccounts = response.data.data.filter(
-        (acc) => acc.type === 'bank_account',
-      );
-      if (bankAccounts.length > 0) {
-        const statusCounts = {};
-        bankAccounts.forEach((acc) => {
-          const status = acc.status || 'unknown';
-          statusCounts[status] = (statusCounts[status] || 0) + 1;
-        });
-        console.log('[API] Bank account verification status:', statusCounts);
-      }
-    }
 
     return {
       success: true,
       data: response.data.data || [],
     };
   } catch (error) {
-    console.error('[API] Error fetching accounts:', error);
+    console.error('[API] Error fetching accounts');
 
     // Better error handling
     let errorMessage = 'Unknown API error';
@@ -493,9 +397,7 @@ export const withdrawToBank = async (
   payload: BankWithdrawalPayload,
 ): Promise<ApiResponse<Transfer>> => {
   try {
-    console.log(
-      `[API] Initiating bank withdrawal for ${payload.amount} ${payload.currency}`,
-    );
+    console.log(`[API] Initiating bank withdrawal for ${payload.currency}`);
 
     // Set default values for required fields if not provided
     const enhancedPayload = {
@@ -507,33 +409,21 @@ export const withdrawToBank = async (
       customerData: payload.customerData || {},
     };
 
-    console.log(
-      `[API] Bank withdrawal payload:`,
-      JSON.stringify(enhancedPayload, null, 2),
-    );
-
     const response = await api.post('/transfers/offramp', enhancedPayload, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
 
-    console.log(
-      `[API] Bank withdrawal response:`,
-      JSON.stringify(response.data, null, 2),
-    );
+    console.log('[API] Bank withdrawal response status:', response.status);
 
     return response.data;
   } catch (error) {
-    console.error('[API] Bank withdrawal error:', error);
+    console.error('[API] Bank withdrawal error');
 
     if (axios.isAxiosError(error) && error.response) {
-      console.error(
-        '[API] Bank withdrawal response error:',
-        error.response.data,
-      );
       throw new Error(
-        error.response.data.message || 'Failed to withdraw to bank',
+        error.response.data.message || 'Failed to withdraw to bank'
       );
     }
     throw new Error('Network error occurred during bank withdrawal');
@@ -551,6 +441,8 @@ export const sendBatchTransfers = async (
   payloads: EmailTransferPayload[],
 ): Promise<ApiResponse<Transfer[]>> => {
   try {
+    console.log('[API] Sending batch transfers');
+    
     const response = await api.post(
       '/transfers/send-batch',
       { transfers: payloads },
@@ -560,8 +452,13 @@ export const sendBatchTransfers = async (
         },
       },
     );
+    
+    console.log('[API] Batch transfers response status:', response.status);
+    
     return response.data;
   } catch (error) {
+    console.error('[API] Batch transfers error');
+    
     if (axios.isAxiosError(error) && error.response) {
       throw new Error(
         error.response.data.message || 'Failed to send batch transfers',
@@ -588,20 +485,13 @@ export const sendBatchPayments = async (
   }>,
 ) => {
   try {
-    console.log(
-      `[API] Sending batch payment with ${batchPayments.length} recipients`,
-    );
+    console.log(`[API] Sending batch payment with ${batchPayments.length} recipients`);
 
     // Format all amounts in the batch
     const formattedBatch = batchPayments.map((payment) => ({
       ...payment,
       amount: formatCryptoAmount(payment.amount),
     }));
-
-    console.log(
-      '[API] Formatted batch payment requests:',
-      JSON.stringify(formattedBatch, null, 2),
-    );
 
     const response = await api.post(
       '/transfers/send-batch',
@@ -614,17 +504,13 @@ export const sendBatchPayments = async (
     );
 
     console.log(`[API] Batch payment response status: ${response.status}`);
-    console.log(
-      `[API] Batch payment response data:`,
-      JSON.stringify(response.data, null, 2),
-    );
 
     return {
       success: true,
       data: response.data,
     };
   } catch (error) {
-    console.error('[API] Batch payment error:', error);
+    console.error('[API] Batch payment error');
 
     // Better error handling
     let errorMessage = 'Unknown API error';
@@ -656,11 +542,7 @@ export const getBankWithdrawalQuote = async (
       quoteRequest.amount = formatCryptoAmount(quoteRequest.amount);
     }
 
-    console.log('[API] Getting bank withdrawal quote with data:', {
-      ...quoteRequest,
-      preferredBankAccountId:
-        quoteRequest.preferredBankAccountId.slice(0, 8) + '...',
-    });
+    console.log('[API] Getting bank withdrawal quote');
 
     const response = await api.post('/quotes/offramp', quoteRequest, {
       headers: {
@@ -669,27 +551,10 @@ export const getBankWithdrawalQuote = async (
     });
 
     console.log('[API] Bank quote response status:', response.status);
-    console.log(
-      '[API] Quote payload signature:',
-      response.data.quoteSignature?.slice(0, 20) + '...',
-    );
-
-    // Parse and validate quote payload for additional checks
-    try {
-      const quotePayload = JSON.parse(response.data.quotePayload);
-      console.log('[API] Quote details:', {
-        fromAmount: parseInt(quotePayload.amount) / 1e8,
-        toAmount: parseInt(quotePayload.toAmount) / 1e8,
-        fee: parseInt(quotePayload.totalFee) / 1e8,
-        rate: quotePayload.rate,
-      });
-    } catch (e) {
-      console.warn('[API] Could not parse quote payload:', e);
-    }
 
     return response.data;
   } catch (error) {
-    console.error('[API] Bank quote error:', error);
+    console.error('[API] Bank quote error');
 
     // Better error handling
     let errorMessage = 'Unknown API error';
@@ -713,10 +578,7 @@ export const processBankWithdrawal = async (
   },
 ): Promise<any> => {
   try {
-    console.log(
-      '[API] Processing bank withdrawal with signature:',
-      withdrawalData.quoteSignature?.slice(0, 15) + '...',
-    );
+    console.log('[API] Processing bank withdrawal');
 
     const response = await api.post('/transfers/offramp', withdrawalData, {
       headers: {
@@ -726,11 +588,10 @@ export const processBankWithdrawal = async (
 
     console.log('[API] Bank withdrawal response status:', response.status);
     console.log('[API] Withdrawal ID:', response.data.id);
-    console.log('[API] Withdrawal status:', response.data.status);
 
     return response.data;
   } catch (error) {
-    console.error('[API] Bank withdrawal error:', error);
+    console.error('[API] Bank withdrawal error');
 
     // Better error handling with specific messages for common errors
     let errorMessage = 'Unknown API error';

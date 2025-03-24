@@ -16,14 +16,9 @@ const loginCommand = Composer.command('login', async (ctx) => {
 
   // Check if already authenticated
   const session = getSession(ctx);
-  console.log('[LOGIN] Session state:', {
-    authenticated: session.authenticated,
-    currentStep: session.currentStep,
-    hasTempData: !!session.tempData,
-  });
-
+  
   if (session.authenticated) {
-    console.log('[LOGIN] User already authenticated, sending message');
+    console.log('[LOGIN] User already authenticated');
     await ctx.reply(
       '✅ You are already logged in.\n\nUse /logout if you want to log out and log in with a different account.',
     );
@@ -45,20 +40,13 @@ const loginCommand = Composer.command('login', async (ctx) => {
 const loginFlow = Composer.on(message('text'), async (ctx, next) => {
   // Skip if not in login flow
   const session = getSession(ctx);
-  console.log(
-    '[LOGIN FLOW] Message received, current step:',
-    session?.currentStep,
-  );
+  console.log('[LOGIN FLOW] Current step:', session?.currentStep);
 
   if (!session?.currentStep?.startsWith('login_')) {
-    console.log('[LOGIN FLOW] Not in login flow, passing to next handler');
     return next();
   }
 
   const text = ctx.message.text.trim();
-  console.log(
-    `[LOGIN FLOW] Processing input: "${text}" for step: ${session.currentStep}`,
-  );
 
   // Handle email input
   if (session.currentStep === 'login_email') {
@@ -75,7 +63,7 @@ const loginFlow = Composer.on(message('text'), async (ctx, next) => {
     }
 
     try {
-      console.log(`[LOGIN FLOW] Valid email format: ${text}`);
+      console.log('[LOGIN FLOW] Valid email format');
 
       // Store email in session
       console.log('[LOGIN FLOW] Storing email in session');
@@ -87,20 +75,14 @@ const loginFlow = Composer.on(message('text'), async (ctx, next) => {
 
       console.log('[LOGIN FLOW] Calling requestEmailOtp API');
       const otpResponse = await authApi.requestEmailOtp({ email: text });
-      console.log('[LOGIN FLOW] OTP request successful', otpResponse);
+      console.log('[LOGIN FLOW] OTP request successful');
 
       // Store the session ID from the OTP request
       if (otpResponse && otpResponse.sid) {
-        console.log(
-          '[LOGIN FLOW] Storing session ID in tempData:',
-          otpResponse.sid,
-        );
+        console.log('[LOGIN FLOW] Storing session ID in tempData');
         setTempData(ctx, 'sid', otpResponse.sid);
       } else {
-        console.error(
-          '[LOGIN FLOW] No session ID received from OTP request',
-          otpResponse,
-        );
+        console.error('[LOGIN FLOW] No session ID received from OTP request');
         await ctx.reply(
           '❌ Error requesting OTP: Missing session ID from server. Please try again later.',
         );
@@ -119,7 +101,7 @@ const loginFlow = Composer.on(message('text'), async (ctx, next) => {
       console.log('[LOGIN FLOW] Updating step to login_otp');
       session.currentStep = 'login_otp';
     } catch (error) {
-      console.error('[LOGIN FLOW] Error requesting OTP:', error);
+      console.error('[LOGIN FLOW] Error requesting OTP');
       await ctx.reply(
         `❌ Failed to request OTP: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
       );
@@ -158,18 +140,10 @@ const loginFlow = Composer.on(message('text'), async (ctx, next) => {
         );
       }
 
-      console.log(`[LOGIN FLOW] Retrieved email from session: ${email}`);
-      console.log(`[LOGIN FLOW] Retrieved session ID from session: ${sid}`);
-
       // Authenticate with OTP
       await ctx.reply('🔄 Authenticating...');
 
-      console.log('[LOGIN FLOW] Preparing to authenticate with OTP');
-      console.log('[LOGIN FLOW] Authentication payload:', {
-        email,
-        otpLength: text.length,
-        hasSid: !!sid,
-      });
+      console.log('[LOGIN FLOW] Authenticating with OTP');
 
       try {
         console.log('[LOGIN FLOW] Calling authenticateWithOtp API');
@@ -179,7 +153,6 @@ const loginFlow = Composer.on(message('text'), async (ctx, next) => {
           sid,
         });
         console.log('[LOGIN FLOW] Authentication successful');
-        console.log('[LOGIN FLOW] Auth response:', response);
 
         // Extract data directly from the response
         const { accessToken, accessTokenId, user } = response;
@@ -232,15 +205,13 @@ const loginFlow = Composer.on(message('text'), async (ctx, next) => {
         console.log('[LOGIN FLOW] Resetting current step');
         session.currentStep = undefined;
       } catch (authError) {
-        console.error('[LOGIN FLOW] Authentication API error:', authError);
+        console.error('[LOGIN FLOW] Authentication API error');
 
         // Extract the error message
         const errorMessage =
           authError instanceof Error
             ? authError.message
             : 'Unknown authentication error';
-
-        console.error('[LOGIN FLOW] Error message:', errorMessage);
 
         // Check for common error patterns
         if (
@@ -270,7 +241,7 @@ const loginFlow = Composer.on(message('text'), async (ctx, next) => {
         session.currentStep = undefined;
       }
     } catch (error) {
-      console.error('[LOGIN FLOW] Login flow error:', error);
+      console.error('[LOGIN FLOW] Login flow error');
       await ctx.reply(
         '❌ An unexpected error occurred during login. Please try again with /login.',
       );
@@ -280,7 +251,6 @@ const loginFlow = Composer.on(message('text'), async (ctx, next) => {
     return;
   }
 
-  console.log('[LOGIN FLOW] Passing to next handler (step not recognized)');
   return next();
 });
 

@@ -115,9 +115,7 @@ async function fetchAndDisplayHistory(ctx, page = 1) {
 
     // Validate page input
     if (page < 1) {
-      console.warn(
-        `[HISTORY] Invalid page number ${page}, defaulting to page 1`,
-      );
+      console.warn(`[HISTORY] Invalid page number ${page}, defaulting to page 1`);
       page = 1;
     }
 
@@ -137,9 +135,7 @@ async function fetchAndDisplayHistory(ctx, page = 1) {
       throw new Error('Authentication token not found. Please login again.');
     }
 
-    console.log(
-      `[HISTORY] Making API request to /transactions with page=${page}, limit=${ITEMS_PER_PAGE}`,
-    );
+    console.log(`[HISTORY] Making API request to /transactions`);
 
     // Fetch transactions with pagination only (no status filter)
     const response = await transfersApi.getTransferHistory(
@@ -148,44 +144,16 @@ async function fetchAndDisplayHistory(ctx, page = 1) {
       ITEMS_PER_PAGE,
     );
 
-    console.log(
-      `[HISTORY] API response received:`,
-      JSON.stringify(response, null, 2),
-    );
-
     // Validate response structure
     if (!response || typeof response !== 'object') {
-      console.error(
-        '[HISTORY] Invalid response format - not an object:',
-        response,
-      );
+      console.error('[HISTORY] Invalid response format - not an object');
       throw new Error('API returned invalid response format');
     }
 
     if (!response.data) {
-      console.error('[HISTORY] Response missing data property:', response);
+      console.error('[HISTORY] Response missing data property');
       throw new Error('API response missing data property');
     }
-
-    // Extra validation of response structure
-    console.log('[HISTORY] Response structure validation:');
-    console.log(`- Has data property: ${!!response.data}`);
-    console.log(`- Data property type: ${typeof response.data}`);
-    console.log(
-      `- Has data.data array: ${!!(response.data.data && Array.isArray(response.data.data))}`,
-    );
-    console.log(
-      `- Has data.count: ${typeof response.data.count !== 'undefined'}`,
-    );
-    console.log(
-      `- Has data.hasMore: ${typeof response.data.hasMore !== 'undefined'}`,
-    );
-    console.log(
-      `- Has data.page: ${typeof response.data.page !== 'undefined'}`,
-    );
-    console.log(
-      `- Has data.limit: ${typeof response.data.limit !== 'undefined'}`,
-    );
 
     // Extract data from the response, with fallbacks for missing properties
     let rawTransactions = [];
@@ -196,9 +164,7 @@ async function fetchAndDisplayHistory(ctx, page = 1) {
       rawTransactions = response.data.data;
     } else if (Array.isArray(response.data)) {
       // Alternative format: data itself might be an array
-      console.log(
-        '[HISTORY] Alternative response format detected: response.data is an array',
-      );
+      console.log('[HISTORY] Alternative response format detected: response.data is an array');
       rawTransactions = response.data;
     } else {
       console.error('[HISTORY] No transaction data found in response');
@@ -207,44 +173,30 @@ async function fetchAndDisplayHistory(ctx, page = 1) {
     // Extract count/total with fallbacks
     if (typeof response.data.count === 'number') {
       totalItems = response.data.count;
-      console.log(
-        `[HISTORY] Using response.data.count for total: ${totalItems}`,
-      );
     } else if (typeof (response.data as any).total === 'number') {
       totalItems = (response.data as any).total;
-      console.log(
-        `[HISTORY] Using response.data.total for total: ${totalItems}`,
-      );
     } else {
       // If no count found, estimate based on current page and items per page
       const estimatedTotal =
         (page - 1) * ITEMS_PER_PAGE + rawTransactions.length;
       totalItems = Math.max(estimatedTotal, rawTransactions.length);
-      console.log(
-        `[HISTORY] No count/total field found, estimating as ${totalItems}`,
-      );
+      console.log(`[HISTORY] No count/total field found, estimating total`);
     }
 
     // Make sure total is at least the number of items we have
     if (totalItems < rawTransactions.length) {
       totalItems = rawTransactions.length;
-      console.log(
-        `[HISTORY] Adjusted total items to match transaction count: ${totalItems}`,
-      );
     }
 
     // Force minimum total to ensure pagination works
     if (totalItems <= 0 && rawTransactions.length > 0) {
       totalItems = Math.max(ITEMS_PER_PAGE, rawTransactions.length);
-      console.log(
-        `[HISTORY] Forced minimum total items to enable pagination: ${totalItems}`,
-      );
+      console.log(`[HISTORY] Forced minimum total items to enable pagination`);
     }
 
     // Extract hasMore with fallbacks
     if (typeof response.data.hasMore === 'boolean') {
       hasMore = response.data.hasMore;
-      console.log(`[HISTORY] Using response hasMore flag: ${hasMore}`);
     } else {
       // If we can't determine, calculate based on current page, total items and items per page
       const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
@@ -253,40 +205,18 @@ async function fetchAndDisplayHistory(ctx, page = 1) {
       // If on page 1 with full page of results, assume there might be more
       if (page === 1 && rawTransactions.length >= ITEMS_PER_PAGE) {
         hasMore = true;
-        console.log(
-          `[HISTORY] On first page with full results, assuming more pages exist`,
-        );
       }
-
-      console.log(
-        `[HISTORY] No hasMore field found, calculated as ${hasMore} (page ${page} of ${totalPages})`,
-      );
     }
 
     // Force hasMore to true if we have a full page of results
     if (!hasMore && rawTransactions.length >= ITEMS_PER_PAGE) {
-      console.log(
-        `[HISTORY] Got full page of results (${rawTransactions.length}), forcing hasMore=true`,
-      );
       hasMore = true;
     }
 
-    console.log(
-      `[HISTORY] Extracted ${rawTransactions.length} transactions, totalItems=${totalItems}, hasMore=${hasMore}`,
-    );
+    console.log(`[HISTORY] Extracted ${rawTransactions.length} transactions`);
 
     // Map transactions to UI format
     const transactions = rawTransactions.map(mapTransactionForUI);
-
-    console.log(
-      `[HISTORY] Mapped ${transactions.length} transactions for UI display`,
-    );
-    console.log(
-      `[HISTORY] First transaction sample:`,
-      transactions.length > 0
-        ? JSON.stringify(transactions[0], null, 2)
-        : 'No transactions',
-    );
 
     // Update user's view state
     userViewState.set(userId, {
@@ -298,9 +228,7 @@ async function fetchAndDisplayHistory(ctx, page = 1) {
 
     // Check if we have any transactions
     if (!transactions || transactions.length === 0) {
-      console.log(
-        `[HISTORY] No transactions found, displaying empty state message`,
-      );
+      console.log(`[HISTORY] No transactions found, displaying empty state message`);
 
       // We need to show a message but also offer a way back to the menu
       await ctx.reply(
@@ -333,10 +261,6 @@ async function fetchAndDisplayHistory(ctx, page = 1) {
     await displayPaginationControls(ctx, page, totalItems, hasMore);
   } catch (error) {
     console.error('[HISTORY] Error fetching transaction history:', error);
-    console.error(
-      '[HISTORY] Error details:',
-      error instanceof Error ? error.stack : 'Unknown error type',
-    );
     await ctx.reply(
       formatError('Failed to fetch transaction history') +
         `\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again later.`,
@@ -384,10 +308,6 @@ async function displayTransactions(ctx, transactions, currentPage, totalItems) {
       const divisor = Math.pow(10, 8);
       const adjustedAmount = originalAmount / divisor;
       const amount = formatAmount(adjustedAmount);
-
-      console.log(
-        `[HISTORY] Original amount: ${originalAmount}, Adjusted amount (÷10^8): ${adjustedAmount}`,
-      );
 
       const currency = escapeMarkdown(
         transfer.token || transfer.fromCurrency || 'unknown',
@@ -466,7 +386,7 @@ async function displayTransactions(ctx, transactions, currentPage, totalItems) {
       message += DIVIDERS.small;
     } catch (err) {
       // If there's an error formatting a specific transaction, log it and add a simplified entry
-      console.error(`[HISTORY] Error formatting transaction ${index}:`, err);
+      console.error(`[HISTORY] Error formatting transaction ${index}`);
       message += `${ICON.warning} *${startItem + index}. Transaction*\n`;
       message += `${SECTION.item}Error displaying details for this transaction\n`;
       message += DIVIDERS.small;
@@ -477,7 +397,7 @@ async function displayTransactions(ctx, transactions, currentPage, totalItems) {
   try {
     await ctx.reply(message, { parse_mode: 'Markdown' });
   } catch (sendError) {
-    console.error('[HISTORY] Error sending transaction message:', sendError);
+    console.error('[HISTORY] Error sending transaction message');
 
     // Try sending a simplified message instead
     await ctx.reply(
@@ -497,33 +417,20 @@ async function displayPaginationControls(
   hasMore,
 ) {
   try {
-    console.log(
-      `[HISTORY] Setting up pagination controls: page=${currentPage}, totalItems=${totalItems}, hasMore=${hasMore}`,
-    );
+    console.log(`[HISTORY] Setting up pagination controls: page=${currentPage}`);
 
     // Calculate total pages - enforce minimum of 1 page
     const totalPages = Math.max(Math.ceil(totalItems / ITEMS_PER_PAGE), 1);
-    console.log(`[HISTORY] Calculated totalPages=${totalPages}`);
-
-    // Debug information about page state
-    console.log(
-      `[HISTORY] Current page state: page=${currentPage}, totalPages=${totalPages}`,
-    );
 
     // Make sure current page doesn't exceed total pages
     // If it does, we're in an error state and should reset
     if (currentPage > totalPages && totalPages > 0) {
-      console.error(
-        `[HISTORY] ERROR: Current page ${currentPage} exceeds total pages ${totalPages}`,
-      );
+      console.error(`[HISTORY] ERROR: Current page ${currentPage} exceeds total pages ${totalPages}`);
       currentPage = totalPages; // Fix the currentPage to avoid display issues
     }
 
     // Determine if we need a next page button
     const hasNextPage = hasMore || currentPage < totalPages;
-    console.log(
-      `[HISTORY] Has next page: ${hasNextPage} (hasMore=${hasMore}, currentPage=${currentPage}, totalPages=${totalPages})`,
-    );
 
     const navigationButtons = [];
 
@@ -532,7 +439,6 @@ async function displayPaginationControls(
 
     // Previous button if needed
     if (currentPage > 1) {
-      console.log(`[HISTORY] Adding 'Previous' button`);
       navRow.push(
         Markup.button.callback(
           `⬅️ Previous`,
@@ -544,9 +450,6 @@ async function displayPaginationControls(
     // Add page indicator with proper validation
     // Make sure the display makes logical sense
     const displayPage = Math.min(currentPage, totalPages);
-    console.log(
-      `[HISTORY] Adding page indicator: ${displayPage}/${totalPages}`,
-    );
     navRow.push(
       Markup.button.callback(
         `${displayPage}/${totalPages}`,
@@ -556,7 +459,6 @@ async function displayPaginationControls(
 
     // Next button if needed
     if (hasNextPage) {
-      console.log(`[HISTORY] Adding 'Next' button`);
       navRow.push(
         Markup.button.callback(
           `Next ➡️`,
@@ -584,9 +486,6 @@ async function displayPaginationControls(
       navigationMessage += '\n\nAll your transactions are shown on this page.';
     }
 
-    console.log(
-      `[HISTORY] Sending pagination controls with ${navigationButtons.length} rows`,
-    );
     await ctx.reply(navigationMessage, {
       parse_mode: 'Markdown',
       reply_markup: {
@@ -594,7 +493,7 @@ async function displayPaginationControls(
       },
     });
   } catch (error) {
-    console.error(`[HISTORY] Error displaying pagination controls:`, error);
+    console.error(`[HISTORY] Error displaying pagination controls`);
     // Instead of silent fail, try to at least send back button
     try {
       await ctx.reply(formatSubheader('Return to Menu'), {
@@ -611,10 +510,7 @@ async function displayPaginationControls(
         },
       });
     } catch (fallbackError) {
-      console.error(
-        `[HISTORY] Failed to send fallback navigation:`,
-        fallbackError,
-      );
+      console.error(`[HISTORY] Failed to send fallback navigation`);
     }
   }
 }
@@ -631,10 +527,10 @@ const pageAction = Composer.action(
   async (ctx) => {
     try {
       await ctx.answerCbQuery('Loading page...');
-      const [_, pageStr, status] = ctx.match as RegExpMatchArray;
+      const [_, pageStr] = ctx.match as RegExpMatchArray;
       const page = parseInt(pageStr);
 
-      console.log(`[HISTORY] User selected page ${page} with status ${status}`);
+      console.log(`[HISTORY] User selected page ${page}`);
 
       // Basic validation
       if (isNaN(page) || page < 1) {
@@ -658,17 +554,10 @@ const pageAction = Composer.action(
       try {
         await ctx.deleteMessage(loadingMsg.message_id);
       } catch (deleteError) {
-        console.warn(
-          '[HISTORY] Could not delete loading message:',
-          deleteError,
-        );
+        console.warn('[HISTORY] Could not delete loading message');
       }
     } catch (error) {
-      console.error('[HISTORY] Error handling page action:', error);
-      console.error(
-        '[HISTORY] Error stack:',
-        error instanceof Error ? error.stack : 'Unknown error type',
-      );
+      console.error('[HISTORY] Error handling page action');
 
       try {
         await ctx.answerCbQuery('Error loading page. Please try again.');
@@ -678,7 +567,7 @@ const pageAction = Composer.action(
           { parse_mode: 'Markdown' },
         );
       } catch (replyError) {
-        console.error('[HISTORY] Failed to send error message:', replyError);
+        console.error('[HISTORY] Failed to send error message');
       }
     }
   },
@@ -703,20 +592,11 @@ const historyTestCommand = Composer.command(
       }
 
       // Log information about the request
-      console.log(
-        '[HISTORYTEST] Starting API test with token:',
-        token.substring(0, 10) + '...',
-      );
+      console.log('[HISTORYTEST] Starting API test');
       console.log('[HISTORYTEST] API base URL:', config.api.baseURL);
 
       // Make a simple GET request to the API
       const response = await transfersApi.getTransferHistory(token, 1, 1);
-
-      // Log the API response
-      console.log(
-        '[HISTORYTEST] API response:',
-        JSON.stringify(response, null, 2),
-      );
 
       // Send the response info to the user
       await ctx.reply(
@@ -729,7 +609,7 @@ const historyTestCommand = Composer.command(
         { parse_mode: 'Markdown' },
       );
     } catch (error) {
-      console.error('[HISTORYTEST] Error testing API connection:', error);
+      console.error('[HISTORYTEST] Error testing API connection');
 
       // Send detailed error info to the user
       await ctx.reply(
@@ -753,8 +633,7 @@ const historyConfigCommand = Composer.command(
       const transactionsUrl = `${baseUrl}/transactions`;
 
       // Check API base URL
-      console.log('[HISTORYCONFIG] API base URL:', baseUrl);
-      console.log('[HISTORYCONFIG] Transactions endpoint:', transactionsUrl);
+      console.log('[HISTORYCONFIG] Checking API configuration');
 
       await ctx.reply(
         formatHeader('API Configuration') +
@@ -782,7 +661,7 @@ const historyConfigCommand = Composer.command(
         );
       }
     } catch (error) {
-      console.error('[HISTORYCONFIG] Error:', error);
+      console.error('[HISTORYCONFIG] Error');
       await ctx.reply(
         formatError('Error checking API configuration') +
           `\n\n${error instanceof Error ? error.message : 'Unknown error'}`,
